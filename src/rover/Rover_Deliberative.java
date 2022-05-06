@@ -76,7 +76,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
         _key = "";
         A = new DecisionSet();
         E = new Environment();
-         E.setTarget(new Point3D(0,0,0));
+//         E.setTarget(new Point3D(0,0,0));
        step = true;
         A.
                 addChoice(new Choice("HALT")).
@@ -226,7 +226,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
             return null;
         } else {
             A = Prioritize(E, A);
-            return A.Best();
+            return A.BestChoice();
         }
     }
       Status solveProblemDeliberative() {

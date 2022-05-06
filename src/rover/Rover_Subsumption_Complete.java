@@ -373,10 +373,10 @@ public class Rover_Subsumption_Complete extends LARVAFirstAgent {
             return null;
         } else {
             A = Prioritize(E, A);
-            if (A.Best().getName().equals("IDLE")) {
-                return A.SecondBest();
+            if (A.BestChoice().getName().equals("IDLE")) {
+                return A.SecondBestChoice();
             } else {
-                return A.Best();
+                return A.BestChoice();
             }
         }
     }

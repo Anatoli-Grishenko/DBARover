@@ -79,7 +79,7 @@ public class Rover_Reactive extends LARVAFirstAgent {
         _key = "";
         A = new DecisionSet();
         E = new Environment();
-        E.setTarget(new Point3D(0,0,0));
+//        E.setTarget(new Point3D(0,0,0));
         step = true;
         A.
                 addChoice(new Choice("HALT")).
@@ -92,7 +92,7 @@ public class Rover_Reactive extends LARVAFirstAgent {
 
     @Override
     protected boolean Ve(Environment E) {
-        if (E == null || E.getGround() < 0
+        if (E == null || E.isCrahsed()
                 || E.getX() < 0 || E.getX() >= E.getWorldWidth()
                 || E.getY() < 0 || E.getY() >= E.getWorldHeight()
                 || E.getEnergy() == 0) {
@@ -194,7 +194,7 @@ public class Rover_Reactive extends LARVAFirstAgent {
             return null;
         } else {
             A = Prioritize(E, A);
-            return A.Best();
+            return A.BestChoice();
         }
     }
 
