@@ -28,10 +28,10 @@ import static glossary.capability.MOVE;
 import static glossary.capability.RECHARGE;
 import static glossary.capability.RIGHT;
 import static glossary.capability.UP;
-import glossary.sensors;
-import static glossary.sensors.LIDAR;
-import static glossary.sensors.THERMAL;
-import static glossary.sensors.VISUAL;
+import glossary.Sensors;
+import static glossary.Sensors.LIDAR;
+import static glossary.Sensors.THERMAL;
+import static glossary.Sensors.VISUAL;
 import jade.core.AID;
 import jade.lang.acl.ACLMessage;
 import java.util.ArrayList;
@@ -63,17 +63,17 @@ public class Rover_Subsumption_Complete extends LARVAFirstAgent {
     // DBA2021
     String _receiver;
     public String _mySensors[] = new String[]{
-        glossary.sensors.ALIVE.name(),
-        glossary.sensors.ALTITUDE.name(),
-        glossary.sensors.ANGULAR.name(),
-        glossary.sensors.COMPASS.name(),
-        glossary.sensors.DISTANCE.name(),
-        glossary.sensors.ENERGY.name(),
-        glossary.sensors.GPS.name(),
-        glossary.sensors.LIDAR.name(),
-        glossary.sensors.ONTARGET.name(),
-        glossary.sensors.THERMAL.name(),
-        glossary.sensors.VISUAL.name()
+        glossary.Sensors.ALIVE.name(),
+        glossary.Sensors.GROUND.name(),
+        glossary.Sensors.ANGULAR.name(),
+        glossary.Sensors.COMPASS.name(),
+        glossary.Sensors.DISTANCE.name(),
+        glossary.Sensors.ENERGY.name(),
+        glossary.Sensors.GPS.name(),
+        glossary.Sensors.LIDAR.name(),
+        glossary.Sensors.ONTARGET.name(),
+        glossary.Sensors.THERMAL.name(),
+        glossary.Sensors.VISUAL.name()
     }, myAttachments[] = new String[_mySensors.length];
 
     protected DecisionSet A, lastPlan;
@@ -352,13 +352,13 @@ public class Rover_Subsumption_Complete extends LARVAFirstAgent {
         if (!Ve(E)) {
             return false;
         }
-        return E.isOntarget();
+        return E.getOntarget();
     }
 
     protected boolean Ve(Environment E) {
         if (E == null || E.getGround() < 0
-                || E.getX() < 0 || E.getX() >= E.getWorldWidth()
-                || E.getY() < 0 || E.getY() >= E.getWorldHeight()
+                || E.getGPS().getX() < 0 || E.getGPS().getX() >= E.getWorldWidth()
+                || E.getGPS().getY() < 0 || E.getGPS().getY() >= E.getWorldHeight()
                 || E.getEnergy() == 0) {
             return false;
         }
@@ -506,7 +506,7 @@ public class Rover_Subsumption_Complete extends LARVAFirstAgent {
         /////////////////////////////////////////// RULE
         Subsumption.addRule("Reach Goal", new Rule("Goal reached").
                 setCondition(() -> {
-                    return E.isOntarget();
+                    return E.getOntarget();
                 }).
                 setBody(() -> {
                     return "HALT";
@@ -531,7 +531,7 @@ public class Rover_Subsumption_Complete extends LARVAFirstAgent {
 //        r.setCondition(() -> {
 //            return E.getLidarFront() < 0;
 ////                    && ((right)
-////                    || (!left && !right && E.getRelativeangular() >= 0)             );
+////                    || (!left && !right && E.getRelativeAngular() >= 0)             );
 //        });
 //        r.setBody(() -> {
 //            E.left = false;
@@ -570,7 +570,7 @@ public class Rover_Subsumption_Complete extends LARVAFirstAgent {
 //        r.setCondition(() -> {
 //            return E.getLidarFront() < 0;
 ////                    && ((right)
-////                    || (!left && !right && E.getRelativeangular() >= 0)             );
+////                    || (!left && !right && E.getRelativeAngular() >= 0)             );
 //        });
 //        r.setBody(() -> {
 //            E.left = true;
@@ -603,8 +603,8 @@ public class Rover_Subsumption_Complete extends LARVAFirstAgent {
 //        /////////////////////////////////////////// RULE
 //        r = new Rule("Goal to left");
 //        r.setCondition(() -> {
-//            return (!E.left && !E.right && E.getLidarLeft() >= 0 && E.getRelativeangular() >= 45)
-//                    || (E.right && E.getLidarLeft() >= 0 && E.getRelativeangular() >= 45 && E.getDistance() < E.lastDistance);
+//            return (!E.left && !E.right && E.getLidarLeft() >= 0 && E.getRelativeAngular() >= 45)
+//                    || (E.right && E.getLidarLeft() >= 0 && E.getRelativeAngular() >= 45 && E.getDistance() < E.lastDistance);
 //        });
 //        r.setBody(() -> {
 //            return "LEFT";
@@ -613,8 +613,8 @@ public class Rover_Subsumption_Complete extends LARVAFirstAgent {
 //
 //        r = new Rule("Goal to right");
 //        r.setCondition(() -> {
-//            return (!E.left && !E.right && E.getLidarRight() >= 0 && E.getRelativeangular() <= -45)
-//                    || (E.left && E.getLidarRight() >= 0 && E.getRelativeangular() <= -45 && E.getDistance() < E.lastDistance);
+//            return (!E.left && !E.right && E.getLidarRight() >= 0 && E.getRelativeAngular() <= -45)
+//                    || (E.left && E.getLidarRight() >= 0 && E.getRelativeAngular() <= -45 && E.getDistance() < E.lastDistance);
 //        });
 //        r.setBody(() -> {
 //            return "RIGHT";
@@ -629,15 +629,15 @@ public class Rover_Subsumption_Complete extends LARVAFirstAgent {
 //        });
 //        r.setBody(() -> {
 //            if (E.right
-//                    && ((E.getLidarLeft() >= 0 && E.getRelativeangular() >= 45 && E.getDistance() < E.lastDistance)
-//                    || (E.getLidarRightmost() >= 0 && E.getDistance() < E.lastDistance && Math.abs(E.getRelativeangular()) <= 45))) {
+//                    && ((E.getLidarLeft() >= 0 && E.getRelativeAngular() >= 45 && E.getDistance() < E.lastDistance)
+//                    || (E.getLidarRightmost() >= 0 && E.getDistance() < E.lastDistance && Math.abs(E.getRelativeAngular()) <= 45))) {
 //                E.right = false;
 //                E.left = false;
 //                E.lastDistance = -1;
 //            }
 //            if (E.left
-//                    && ((E.getLidarRight() >= 0 && E.getRelativeangular() <= - 45 && E.getDistance() < E.lastDistance)
-//                    || (E.getLidarLeftmost() >= 0 && E.getDistance() < E.lastDistance && Math.abs(E.getRelativeangular()) <= 45))) {
+//                    && ((E.getLidarRight() >= 0 && E.getRelativeAngular() <= - 45 && E.getDistance() < E.lastDistance)
+//                    || (E.getLidarLeftmost() >= 0 && E.getDistance() < E.lastDistance && Math.abs(E.getRelativeAngular()) <= 45))) {
 //                E.right = false;
 //                E.left = false;
 //                E.lastDistance = -1;
@@ -726,13 +726,13 @@ public class Rover_Subsumption_Complete extends LARVAFirstAgent {
         console.setCursorXY(2, 2);
         console.print(this.getLocalName());
         console.setCursorXY(2, 5);
-        svalue = String.format(label("X:") + value(" %03d"), E.getX());
+        svalue = String.format(label("X:") + value(" %03d"), E.getGPS().getX());
         console.print(svalue);
-        svalue = String.format(label("\t\tY:") + value(" %03d"), E.getY());
+        svalue = String.format(label("\t\tY:") + value(" %03d"), E.getGPS().getY());
         console.print(svalue);
         svalue = String.format(label("\tC:") + value(" %2s (%4dº)"), Compass.NAME[E.getCompass() / 45], E.getCompass());
         console.print(svalue);
-        svalue = String.format("\t\t\t" + label("\tSTEP:") + value(" %03d"), E.getNsteps());
+        svalue = String.format("\t\t\t" + label("\tSTEP:") + value(" %03d"), E.getNSteps());
         console.print(svalue);
         console.setCursorXY(2, 6);
         db1 = E.getDistance();
@@ -740,7 +740,7 @@ public class Rover_Subsumption_Complete extends LARVAFirstAgent {
             svalue = label("D: ") + value("XXXXX") + label("\tA: ") + value("XXXXX");
         } else {
             svalue = String.format(label("D: ") + value("%05.1f") + label("\tA: ") + value("%5.1fº (%5.1fº))"),
-                    E.getDistance(), E.getAngular(), E.getRelativeangular());
+                    E.getDistance(), E.getAngular(), E.getRelativeAngular());
         }
         console.print(svalue);
         int Obstacle[][] = E.getShortRadar();

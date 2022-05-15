@@ -43,17 +43,17 @@ public class Rover_Reactive extends LARVAFirstAgent {
     // DBA2021
     String _receiver;
     public String _mySensors[] = new String[]{
-        glossary.sensors.ALIVE.name(),
-        glossary.sensors.ALTITUDE.name(),
-        glossary.sensors.ANGULAR.name(),
-        glossary.sensors.COMPASS.name(),
-        glossary.sensors.DISTANCE.name(),
-        glossary.sensors.ENERGY.name(),
-        glossary.sensors.GPS.name(),
-        glossary.sensors.LIDAR.name(),
-        glossary.sensors.ONTARGET.name(),
-        glossary.sensors.THERMAL.name(),
-        glossary.sensors.VISUAL.name()
+        glossary.Sensors.ALIVE.name(),
+        glossary.Sensors.GROUND.name(),
+        glossary.Sensors.ANGULAR.name(),
+        glossary.Sensors.COMPASS.name(),
+        glossary.Sensors.DISTANCE.name(),
+        glossary.Sensors.ENERGY.name(),
+        glossary.Sensors.GPS.name(),
+        glossary.Sensors.LIDAR.name(),
+        glossary.Sensors.ONTARGET.name(),
+        glossary.Sensors.THERMAL.name(),
+        glossary.Sensors.VISUAL.name()
     }, myAttachments[] = new String[_mySensors.length];
 
     boolean step = true;
@@ -61,6 +61,8 @@ public class Rover_Reactive extends LARVAFirstAgent {
     Console console;
     int cw = 100, ch = 100;
     int limitEnergy = 400;
+    double originaldistance;
+    boolean border = false;
 
     @Override
     public void setup() {
@@ -91,89 +93,227 @@ public class Rover_Reactive extends LARVAFirstAgent {
     }
 
     @Override
-    protected boolean Ve(Environment E) {
-        if (E == null || E.isCrahsed()
-                || E.getX() < 0 || E.getX() >= E.getWorldWidth()
-                || E.getY() < 0 || E.getY() >= E.getWorldHeight()
-                || E.getEnergy() == 0) {
-            return false;
-        }
-        return true;
+    public double Reward(Environment E) {
+        return E.getDistance();
     }
 
-    @Override
-    protected boolean G(Environment E) {
-        if (!Ve(E)) {
-            return false;
-        }
-        return E.isOntarget();
-    }
-
-    @Override
-    protected Environment T(Environment E, Choice a) {
-        if (E != null) {
-            return E.simmulate(a);
-        } else {
-            return null;
-        }
-    }
-
+//    @Override
+//    protected boolean Ve(Environment E) {
+//        return super.Ve(E) && E.isMemoryGPS(E.getGPS())<0;
+//    }
+//    @Override
+//    protected boolean Ve(Environment E) {
+//        if (E == null || E.isCrahsed()
+//                || E.getGPSMemory().getX() < 0 || E.getGPSMemory().getX() >= E.getWorldWidth()
+//                || E.getGPSMemory().getY() < 0 || E.getGPSMemory().getY() >= E.getWorldHeight()
+//                || E.getAltitude() < E.getMinlevel() || E.getAltitude() > E.getMaxlevel()
+//                || E.getEnergy() == 0) {
+//            return false;
+//        }
+//        return true;
+//    }
+//    @Override
+//    protected boolean G(Environment E) {
+//        if (!Ve(E)) {
+//            return false;
+//        }
+//        return E.getOntarget();
+//    }
+//    @Override
+//    protected Environment T(Environment E, Choice a) {
+//        if (!Ve(E)) {
+//            return null;
+//        } else {
+//            return E.simmulate(a);
+//        }
+//    }
     @Override
     public boolean Va(Environment E, Choice a) {
+        return VaV5(E, a);
+    }
+
+    // Always move forward, eventually pick the target
+    public boolean VaV0(Environment E, Choice a) {
+        if (a == null) {
+            return false;
+        }
+        switch (a.getName().toUpperCase()) {
+            case "MOVE":
+                return !E.getOntarget();
+            default:
+                return false;
+
+        }
+    }
+
+    // Always move forward, eventually pick the target
+    public boolean VaV1(Environment E, Choice a) {
+        if (a == null) {
+            return false;
+        }
+        switch (a.getName().toUpperCase()) {
+            case "MOVE":
+                return !E.getOntarget() && E.isFreeFront();
+            default:
+                return false;
+
+        }
+    }
+
+    public boolean VaV2(Environment E, Choice a) {
+        if (a == null) {
+            return false;
+        }
+        switch (a.getName().toUpperCase()) {
+            case "RIGHT":
+                return !E.isFreeFront();
+            case "MOVE":
+                return !E.getOntarget() && E.isFreeFront();
+            default:
+                return false;
+
+        }
+    }
+
+    public boolean VaV3(Environment E, Choice a) {
         if (a == null) {
             return false;
         }
         switch (a.getName().toUpperCase()) {
             case "LEFT":
-                return !E.isOntarget() && E.isFreeFrontLeft()
-                        && E.isTargetLeft() && E.getEnergy() >= limitEnergy;
+                return E.isTargetLeft() && E.isFreeFrontLeft();
             case "RIGHT":
-                return !E.isOntarget() && (E.isFreeFrontRight() && E.isTargetRight() || !E.isFreeFront())
-                        && E.getEnergy() >= limitEnergy;
+                return (E.isTargetRight() && E.isFreeFrontRight()) || !E.isFreeFront();
             case "MOVE":
-                return !E.isOntarget() && E.getEnergy() >= limitEnergy && E.isFreeFront();
-            case "IDLE":
-                return true;
-            case "HALT":
+                return !E.getOntarget() && E.isFreeFront();
+            default:
                 return false;
 
+        }
+    }
+
+    public boolean VaV4(Environment E, Choice a) {
+        if (a == null) {
+            return false;
+        }
+        switch (a.getName().toUpperCase()) {
+            case "LEFT":
+                if (!border && E.isTargetLeft() && E.isFreeFrontLeft()) {
+                    return true;
+                } else if (border) {
+                    if (E.isFreeLeft() && E.isTargetLeft() && E.getDistance() < originaldistance) {
+                        border = false;
+                        return true;
+                    } else if (E.isFreeFrontLeft()) {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }
+            case "RIGHT":
+                if ((!border && E.isTargetRight() && E.isFreeFrontRight()) || !E.isFreeFront()) {
+                    return true;
+                } else if (border) {
+                    if (E.isFreeRight() && E.isTargetRight() && E.getDistance() < originaldistance) {
+                        border = false;
+                        return true;
+                    } else if (!E.isFreeFront()) {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            case "MOVE":
+                if (!border && !E.getOntarget() && E.isFreeFront()) {
+                    return true;
+                } else {
+                    if (!border) {
+                        originaldistance = E.getDistance();
+                        border = true;
+                    } else {
+                        if (!E.getOntarget() && E.isFreeFront() && !E.isFreeFrontLeft()) {
+                            return true;
+                        } else {
+                            return false;
+                        }
+                    }
+                    return false;
+                }
         }
         return false;
     }
 
-    @Override
-    protected double U(Environment E) {
-        if (E == null) {
-            return Choice.MAX_UTILITY;
-        } else if (!Ve(E)) {
-            return Choice.MAX_UTILITY;
-        } else if (E.isOntarget()) {
-            return -1000;
-        } else {
-            return E.getDistance(); //E.getThermalHere();
+    public boolean VaV5(Environment E, Choice a) {
+        if (a == null) {
+            return false;
         }
+        if (border) {
+            switch (a.getName().toUpperCase()) {
+                case "LEFT":
+                    if (E.isFreeLeft() && E.isTargetLeft() && E.getDistance() < originaldistance) {
+                        border = false;
+                        return true;
+                    } else if (E.isFreeFrontLeft()) {
+                        return true;
+                    }
+                    break;
+                case "RIGHT":
+                    if (E.isFreeRight() && E.isTargetRight() && E.getDistance() < originaldistance) {
+                        border = false;
+                        return true;
+                    } else if (!E.isFreeFront()) {
+                        return true;
+                    }
+                    break;
+                case "MOVE":
+                    if (!E.getOntarget() && E.isFreeFront() && !E.isFreeFrontLeft()) {
+                        return true;
+                    }
+            }
+        } else {
+            switch (a.getName().toUpperCase()) {
+                case "LEFT":
+                    if (E.isTargetLeft() && E.isFreeFrontLeft()) {
+                        return true;
+                    }
+                    break;
+                case "RIGHT":
+                    if ((E.isTargetRight() && E.isFreeFrontRight()) || !E.isFreeFront()) {
+                        return true;
+                    }
+                    break;
+                case "MOVE":
+                    if (!E.getOntarget() && E.isFreeFront()) {
+                        return true;
+                    } else {
+                        originaldistance = E.getDistance();
+                        border = true;                        
+                    }
+            }
+        }
+
+        return false;
     }
 
-    protected double UR(Environment E) {
-        if (E == null) {
-            return Choice.MAX_UTILITY;
-        } else if (!Ve(E)) {
-            return Choice.MAX_UTILITY;
-        } else if (E.isOntarget()) {
-            return -1000;
-        } else {
-            return T(E, new Choice("MOVE")).getDistance();
-        }
-    }
-
+//    @Override
+//    protected double U(Environment E) {
+//        if (!Ve(E) || E.isMemoryGPSVector(E.getGPSVector())>=2) {
+//            return Choice.MAX_UTILITY;
+//        } else if (E.getOntarget()) {
+//            return -1000;
+//        } else {
+//            return Reward(E);
+//        }
+//    }
     @Override
-    protected DecisionSet Prioritize(Environment E, DecisionSet A) {
+    protected DecisionSet Prioritize(Environment E, DecisionSet A
+    ) {
         for (Choice a : A) {
-            if (a.getName().equals("IDLE") && Va(E, a)) {
-                a.setUtility(Choice.MAX_UTILITY / 1000);
-            } else if (Va(E, a)) {
+            if (Va(E, a)) {
                 if (a.getName().equals("LEFT") || a.getName().equals("RIGHT")) {
-                    a.setUtility(UR(T(E, a)));
+                    a.setUtility(Reward(T(T(E, a), new Choice("MOVE"))));
                 } else {
                     a.setUtility(U(T(E, a)));
                 }
@@ -186,30 +326,22 @@ public class Rover_Reactive extends LARVAFirstAgent {
         return A;
     }
 
-    @Override
-    protected Choice Ag(Environment E, DecisionSet A) {
-        if (G(E)) {
-            return null;
-        } else if (A.isEmpty()) {
-            return null;
-        } else {
-            A = Prioritize(E, A);
-            return A.BestChoice();
-        }
-    }
-
+//    @Override
+//    protected Choice Ag(Environment E, DecisionSet A) {
+//        if (G(E)) {
+//            return null;
+//        } else if (A.isEmpty()) {
+//            return null;
+//        } else {
+//            A = Prioritize(E, A);
+//            return A.BestChoice();
+//        }
+//    }
     Status solveProblem() {
-        /// Percibir        
-        doReadPerceptions();
-
         // Analizar objetivo
         if (G(E)) {
             Info("The problem is over");
             this.Message("The problem " + problemName + " has been solved");
-            return Status.CLOSEPROBLEM;
-        }
-        if (!Ve(E)) {
-            this.Error("The agent is not alive");
             return Status.CLOSEPROBLEM;
         }
         printMyStatusFunctional(E, A);
@@ -219,19 +351,25 @@ public class Rover_Reactive extends LARVAFirstAgent {
             Info("Found no action to execute");
             Alert("Found no action to execute");
             return Status.CLOSEPROBLEM;
-        } else if (a.getName().equals("HALT")) {
+        } else if (a.getName().equals("HALT") || a.getName().equals("IDLE")) {
             Info("Halting the problem");
             Alert("Halting the problem");
             return Status.CLOSEPROBLEM;
         } else {// Execute
             Info("Excuting " + a);
             this.doExecute(a);
+            doReadPerceptions();
+            printMyStatusFunctional(E, A);
+            if (!Ve(E)) {
+                this.Error("The agent is not alive");
+                return Status.CLOSEPROBLEM;
+            }
             return mystatus;
         }
     }
+    //
+    //    @Override
 
-//
-//    @Override
     public void Execute() {
 
         Info("Status: " + mystatus.name());
@@ -268,6 +406,7 @@ public class Rover_Reactive extends LARVAFirstAgent {
                 this.doExit();
                 break;
         }
+//        System.out.println(E.getDeepPerceptions().printStatus("Myself"));
     }
 
     @Override
@@ -382,6 +521,7 @@ public class Rover_Reactive extends LARVAFirstAgent {
         mySentence = new Sentence().parseSentence(inbox.getContent());
         if (mySentence.isNext("CONFIRM")) {
             Info("Session manager " + sessionManager + " has joined to the session " + sessionKey);
+            this.doReadPerceptions();
             return Status.SOLVEPROBLEM;
         } else {
             Info("Could not join the session " + sessionKey);
@@ -445,15 +585,15 @@ public class Rover_Reactive extends LARVAFirstAgent {
         console.setCursorXY(2, 2);
         console.print(this.getLocalName());
         console.setCursorXY(2, 5);
-        svalue = String.format(label("X:") + value(" %03d"), E.getX());
+        svalue = String.format(label("X:") + value(" %03d"), E.getGPS().getXInt());
         console.print(svalue);
-        svalue = String.format(label("\tY:") + value(" %03d"), E.getY());
+        svalue = String.format(label("\tY:") + value(" %03d"), E.getGPS().getYInt());
         console.print(svalue);
-        svalue = String.format(label("\tZ:") + value(" %03d") + "/" + value("%03d"), E.getZ(), E.getMaxlevel());
+        svalue = String.format(label("\tZ:") + value(" %03d") + "/" + value("%03d"), E.getGPS().getZInt(), E.getMaxlevel());
         console.print(svalue);
         svalue = String.format(label("\tG:") + value(" %03d"), E.getGround());
         console.print(svalue);
-        svalue = String.format("\t" + label("\tSTEP:") + value(" %03d"), E.getNsteps());
+        svalue = String.format("\t" + label("\tSTEP:") + value(" %03d"), E.getNSteps());
         console.print(svalue);
         console.setCursorXY(2, 6);
         svalue = String.format(label("C:") + value(" %2s (%4dº)"), Compass.NAME[E.getCompass() / 45], E.getCompass());
@@ -464,7 +604,7 @@ public class Rover_Reactive extends LARVAFirstAgent {
             svalue = label("D: ") + value("XXXXX") + label("\tA: ") + value("XXXXX");
         } else {
             svalue = String.format(label("D: ") + value("%05.2f") + label("\tA: ") + value("%5.2fº (%5.2fº))"),
-                    E.getDistance(), E.getAngular(), E.getRelativeangular());
+                    E.getDistance(), E.getAngular(), E.getRelativeAngular());
         }
         console.print(svalue);
         int Obstacle[][] = E.getShortRadar();
@@ -494,6 +634,24 @@ public class Rover_Reactive extends LARVAFirstAgent {
         }
         console.setCursorXY(2, 12);
         console.println("A=" + this.Prioritize(E, A).toString());
+        console.println("   G   L   F   R");
+        console.println("   " + (G(E) ? "+" : "-") + "  " + (E.isFreeFrontLeft() ? "+" : "-") + "  " + (E.isFreeFront() ? "+" : "-") + "  " + (E.isFreeFrontRight() ? "+" : "-"));
+        console.println(E.getGPSVector().toString());
+        Obstacle = E.getAbsoluteLidar();
+        console.println("Lidar");
+        for (int y = 0; y < Obstacle[0].length; y++) {
+            for (int x = 0; x < Obstacle.length; x++) {
+                svalue = String.format("%4s",
+                        (Obstacle[x][y] == Perceptor.NULLREAD
+                                ? "XXX" : String.format("%3d", Obstacle[x][y])));
+                if (x == Obstacle.length / 2 && y == Obstacle[0].length / 2) {
+                    console.print(label(svalue));
+                } else {
+                    console.print(value(svalue));
+                }
+            }
+            console.println("");
+        }
 //        Obstacle = E.getAbsoluteLidar();
 //        console.println("Lidar");
 //        for (int y = 0; y < Obstacle.length; y++) {

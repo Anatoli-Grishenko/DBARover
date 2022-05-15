@@ -41,17 +41,17 @@ public class Rover_Deliberative extends LARVAFirstAgent {
     // DBA2021
     String _receiver;
     public String _mySensors[] = new String[]{
-        glossary.sensors.ALIVE.name(),
-        glossary.sensors.ALTITUDE.name(),
-        glossary.sensors.ANGULAR.name(),
-        glossary.sensors.COMPASS.name(),
-        glossary.sensors.DISTANCE.name(),
-        glossary.sensors.ENERGY.name(),
-        glossary.sensors.GPS.name(),
-        glossary.sensors.LIDAR.name(),
-        glossary.sensors.ONTARGET.name(),
-        glossary.sensors.THERMAL.name(),
-        glossary.sensors.VISUAL.name()
+        glossary.Sensors.ALIVE.name(),
+        glossary.Sensors.GROUND.name(),
+        glossary.Sensors.ANGULAR.name(),
+        glossary.Sensors.COMPASS.name(),
+        glossary.Sensors.DISTANCE.name(),
+        glossary.Sensors.ENERGY.name(),
+        glossary.Sensors.GPS.name(),
+        glossary.Sensors.LIDAR.name(),
+        glossary.Sensors.ONTARGET.name(),
+        glossary.Sensors.THERMAL.name(),
+        glossary.Sensors.VISUAL.name()
     }, myAttachments[] = new String[_mySensors.length];
 
     boolean step = true, showConsole = false;
@@ -91,8 +91,8 @@ public class Rover_Deliberative extends LARVAFirstAgent {
     @Override
     protected boolean Ve(Environment E) {
         if (E == null || E.getGround() < 0
-                || E.getX() < 0 || E.getX() >= E.getWorldWidth()
-                || E.getY() < 0 || E.getY() >= E.getWorldHeight()
+                || E.getGPS().getX() < 0 || E.getGPS().getX() >= E.getWorldWidth()
+                || E.getGPS().getY() < 0 || E.getGPS().getY() >= E.getWorldHeight()
                 || E.getEnergy() == 0) {
             return false;
         }
@@ -104,7 +104,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
         if (!Ve(E)) {
             return false;
         }
-        return E.isOntarget();
+        return E.getOntarget();
     }
 
     @Override
@@ -123,13 +123,13 @@ public class Rover_Deliberative extends LARVAFirstAgent {
         }
         switch (a.getName().toUpperCase()) {
             case "LEFT":
-                return !E.isOntarget() && E.isFreeFrontLeft()
+                return !E.getOntarget() && E.isFreeFrontLeft()
                         && E.isTargetLeft() && E.getEnergy() >= limitEnergy;
             case "RIGHT":
-                return !E.isOntarget() && (E.isFreeFrontRight() && E.isTargetRight() || !E.isFreeFront())
+                return !E.getOntarget() && (E.isFreeFrontRight() && E.isTargetRight() || !E.isFreeFront())
                         && E.getEnergy() >= limitEnergy;
             case "MOVE":
-                return !E.isOntarget() && E.getEnergy() >= limitEnergy && E.isFreeFront();
+                return !E.getOntarget() && E.getEnergy() >= limitEnergy && E.isFreeFront();
             case "IDLE":
                 return true;
             case "HALT":
@@ -145,7 +145,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
             return Choice.MAX_UTILITY;
         } else if (!Ve(E)) {
             return Choice.MAX_UTILITY;
-        } else if (E.isOntarget()) {
+        } else if (E.getOntarget()) {
             return -1000;
         } else {
             return E.getDistance(); //E.getThermalHere();
@@ -157,7 +157,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
             return Choice.MAX_UTILITY;
         } else if (!Ve(E)) {
             return Choice.MAX_UTILITY;
-        } else if (E.isOntarget()) {
+        } else if (E.getOntarget()) {
             return -1000;
         } else {
             return T(E, new Choice("MOVE")).getDistance();
@@ -481,15 +481,15 @@ public class Rover_Deliberative extends LARVAFirstAgent {
         console.setCursorXY(2, 2);
         console.print(this.getLocalName());
         console.setCursorXY(2, 5);
-        svalue = String.format(label("X:") + value(" %03d"), e.getX());
+        svalue = String.format(label("X:") + value(" %03d"), e.getGPS().getX());
         console.print(svalue);
-        svalue = String.format(label("\tY:") + value(" %03d"), e.getY());
+        svalue = String.format(label("\tY:") + value(" %03d"), e.getGPS().getY());
         console.print(svalue);
-        svalue = String.format(label("\tZ:") + value(" %03d"), e.getZ());
+        svalue = String.format(label("\tZ:") + value(" %03d"), e.getGPS().getZ());
         console.print(svalue);
         svalue = String.format(label("\tG:") + value(" %03d"), e.getGround());
         console.print(svalue);
-        svalue = String.format("\t" + label("\tSTEP:") + value(" %03d"), e.getNsteps());
+        svalue = String.format("\t" + label("\tSTEP:") + value(" %03d"), e.getNSteps());
         console.print(svalue);
         console.setCursorXY(2, 6);
         svalue = String.format(label("C:") + value(" %2s (%4dº)"), Compass.NAME[e.getCompass() / 45], e.getCompass());
@@ -502,9 +502,9 @@ public class Rover_Deliberative extends LARVAFirstAgent {
             svalue = label("D: ") + value("XXXXX") + label("\tA: ") + value("XXXXX");
         } else {
             svalue = String.format(label("D: ") + value("%05.1f") + label("\tA: ") + value("%5.1fº (%5.1fº))"),
-                    e.getDistance(), e.getAngular(), e.getRelativeangular());
+                    e.getDistance(), e.getAngular(), e.getRelativeAngular());
 //            svalue = String.format(label("D: ") + value("%05.1f") + label("\tA: ") + value("%5.1f/%5.1fº (%5.1f/%5.1fº))"),
-//                    e.getDistance(), e.getAngular(), E.getAngular(), e.getRelativeangular(), E.getRelativeangular());
+//                    e.getDistance(), e.getAngular(), E.getAngular(), e.getRelativeAngular(), E.getRelativeAngular());
         }
         console.print(svalue);
         int Obstacle[][] = e.getShortRadar();
