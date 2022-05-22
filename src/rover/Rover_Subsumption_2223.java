@@ -5,12 +5,14 @@
  */
 package rover;
 
-import Environment.Environment;
-import ai.Subsumption;
 import agents.LARVAFirstAgent;
 import ai.Choice;
 import ai.DecisionSet;
+import Environment.Environment;
+import ai.Functional;
+import ai.Plan;
 import ai.Rule;
+import ai.Subsumption;
 import console.Console;
 import static console.Console.gray;
 import static console.Console.green;
@@ -18,26 +20,29 @@ import data.Ole;
 import data.OleConfig;
 import geometry.Compass;
 import geometry.Point3D;
-
 import jade.core.AID;
 import jade.lang.acl.ACLMessage;
+import java.util.Collections;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import messaging.Sentence;
+import swing.OleDialog;
 import world.Perceptor;
 
-public class Rover_Subsumption extends LARVAFirstAgent {
+public class Rover_Subsumption_2223 extends LARVAFirstAgent {
 
     enum Status {
-        CHECKIN, CHECKOUT, OPENPROBLEM, COMISSIONING, JOINPROBLEM, SOLVEPROBLEM, DEAD, CLOSEPROBLEM, EXIT, BLOCKED,
+        CHECKIN, CHECKOUT, OPENPROBLEM, JOINPROBLEM, SOLVEPROBLEM, DEAD, CLOSEPROBLEM, EXIT, BLOCKED,
     }
     Status mystatus, mysubstatus;
     String service = "PManager",
             problemManager = "", sessionKey, sessionManager;
     ACLMessage open, store;
     Sentence mySentence;
-    // Heuristic
+    // Heuristic0
 
     ACLMessage _inbox, _outbox;
-    String _key, _EMPTY = "", map = "World6";
+    String _key, _EMPTY = "", map = "World6", alias = "CHOCOLATE";
 
     // DBA2021
     String _receiver;
@@ -55,15 +60,15 @@ public class Rover_Subsumption extends LARVAFirstAgent {
         glossary.Sensors.VISUAL.name()
     }, myAttachments[] = new String[_mySensors.length];
 
-    protected DecisionSet A, lastPlan;
-    boolean step = true, showConsole = false;
+    boolean step = true;
 
     Subsumption Subsumption;
     Console console;
-    int cw = 75, ch = 50;
+    int cw = 100, ch = 100;
     int limitEnergy = 400;
     double originaldistance;
     boolean border = false;
+    String sessionAlias = "CHOCOLATE";
 
     @Override
     public void setup() {
@@ -72,7 +77,6 @@ public class Rover_Subsumption extends LARVAFirstAgent {
         OleConfig problemCfg = new OleConfig();
         problemCfg.loadFile("config/Problems.conf");
         problemName = problemCfg.getTab("LARVA").getField("Problem");
-        showConsole = this.oleConfig.getTab("Display").getBoolean("Show console");
 
         logger.onTabular();
         logger.onOverwrite();
@@ -81,13 +85,13 @@ public class Rover_Subsumption extends LARVAFirstAgent {
         myAttachments = new String[_mySensors.length];
         mystatus = Status.CHECKIN;
         _key = "";
+        this.DFSetMyServices(new String[]{"TYPE HUMMER"});
         Choice.setDecreasing();
         A = new DecisionSet();
-        lastPlan = new DecisionSet();
         E = new Environment();
-        E.setTarget(new Point3D(0, 0, 0));
+//        E.setTarget(new Point3D(0,0,0));
         step = true;
-        Subsumption = new Subsumption();
+       Subsumption = new Subsumption();
         Ole oModules = problemCfg.getTab("LARVA").getOle("Subs. modules");
         if (oModules.getBoolean("Reach goal")) {
             this.SSA2_ReachGoal();
@@ -126,24 +130,58 @@ public class Rover_Subsumption extends LARVAFirstAgent {
         this.doNotExit();
     }
 
-    @Override
+     @Override
+    protected DecisionSet Prioritize(Environment E, DecisionSet A) {
+        Subsumption.setDecisionSet(A);
+        return Subsumption.MakeBestDecision(E);
+    }
+
+
+ Status solveProblem() {
+        // Analizar objetivo
+        if (G(E)) {
+            Info("The problem is over");
+            this.Message("The problem " + problemName + " has been solved");
+            return Status.CLOSEPROBLEM;
+        }
+        this.printMyStatusSSA(E, A);
+        // Game over
+        Choice a = Ag(E, A);
+        if (a == null) {
+            Info("Found no action to execute");
+            Alert("Found no action to execute");
+            return Status.CLOSEPROBLEM;
+        } else if (a.getName().equals("HALT") || a.getName().equals("IDLE")) {
+            Info("Halting the problem");
+            Alert("Halting the problem");
+            return Status.CLOSEPROBLEM;
+        } else {// Execute
+            Info("Excuting " + a);
+            this.doExecute(a);
+            doReadPerceptions();
+            this.printMyStatusSSA(E, A);
+            if (!Ve(E)) {
+                this.Error("The agent is not alive");
+                return Status.CLOSEPROBLEM;
+            }
+            return mystatus;
+        }
+    }
+    //
+    //    @Override
+
     public void Execute() {
 
         Info("Status: " + mystatus.name());
         switch (mystatus) {
             case CHECKIN:
-                mystatus = CheckIn();
+                mystatus = checkIn();
                 break;
             case OPENPROBLEM:
                 mystatus = openProblem(problemName);
                 break;
-            case COMISSIONING:
-                mystatus = Comissioning();
-                break;
             case JOINPROBLEM:
                 mystatus = joinProblem();
-//                E.left = false;
-//                E.right = false;
                 if (showConsole) {
                     console = new Console("Register of decisions", cw, ch, 8);
                 }
@@ -155,7 +193,7 @@ public class Rover_Subsumption extends LARVAFirstAgent {
                 mystatus = closeProblem();
                 break;
             case CHECKOUT:
-                mystatus = CheckOut();
+                mystatus = checkOut();
                 break;
             case BLOCKED:
                 this.defaultBehaviour.block();
@@ -165,6 +203,7 @@ public class Rover_Subsumption extends LARVAFirstAgent {
                 this.doExit();
                 break;
         }
+//        System.out.println(E.getDeepPerceptions().printStatus("Myself"));
     }
 
     @Override
@@ -174,7 +213,7 @@ public class Rover_Subsumption extends LARVAFirstAgent {
 
     }
 
-    Status CheckIn() {
+    Status checkIn() {
         Info("Loading passport and checking-in");
         if (!this.doLARVACheckin()) {
             Info("Check-in failed");
@@ -187,6 +226,27 @@ public class Rover_Subsumption extends LARVAFirstAgent {
     }
 
     Status openProblem(String problemName) {
+        // First check  if alias is open
+        String opener;
+        if (this.DFGetAllProvidersOf("OPEN SESSION " + sessionAlias).size() > 0) {
+            Info("Session "+sessionAlias+" seems to be already open");
+            opener = this.DFGetAllProvidersOf("OPEN SESSION " + sessionAlias).get(0);
+            for (String service : this.DFGetAllServicesProvidedBy(opener)) {
+                if (service.startsWith(sessionAlias)) {
+                    sessionKey = service.split(" ")[1];
+                    if (this.DFGetAllProvidersOf("SESSION MANAGER " + this.sessionKey).isEmpty()) {
+                        Error("Sorry service SESSION MANAGER not found");
+                        return Status.CLOSEPROBLEM;
+                    }
+                    this.sessionManager = this.DFGetAllProvidersOf("SESSION MANAGER " + this.sessionKey).get(0);
+                    Info("Assigned to " + sessionManager + " in problem " + problemName + " during session " + sessionKey);
+                    return Status.JOINPROBLEM;
+                }
+            }
+            Error("Sorry service SESSION MANAGER not found");
+            return Status.CHECKOUT;
+
+        }
         Info("Searching who is ProblemManager");
         if (this.DFGetAllProvidersOf(service).isEmpty()) {
             Error("Service " + service + " is down");
@@ -198,7 +258,7 @@ public class Rover_Subsumption extends LARVAFirstAgent {
         this.outbox = new ACLMessage();
         outbox.setSender(getAID());
         outbox.addReceiver(new AID(problemManager, AID.ISLOCALNAME));
-        outbox.setContent("Request open " + problemName);
+        outbox.setContent("Request open " + problemName + " alias chocolate");
         this.LARVAsend(outbox);
         open = LARVAblockingReceive();
         if (open == null) {
@@ -209,58 +269,15 @@ public class Rover_Subsumption extends LARVAFirstAgent {
         mySentence = new Sentence().parseSentence(open.getContent());
         if (mySentence.isNext("AGREE")) {
             sessionKey = mySentence.next(3);
+            this.DFAddMyServices(new String[]{"OPEN SESSION CHOCOLATE", "CHOCOLATE " + sessionKey});
             inbox = LARVAblockingReceive();
             sessionManager = inbox.getSender().getLocalName();
             Info("Assigned to " + sessionManager + " in problem " + problemName + " during session " + sessionKey);
-            return Status.COMISSIONING;
+            return Status.JOINPROBLEM;
         } else {
             Error(mySentence.getSentence());
             return Status.CHECKOUT;
         }
-
-    }
-
-    public Status Comissioning() {
-        String storem;
-        String message = "Acquired the following products\n";
-
-        Info("Searching for stores to commision the sensors");
-        if (this.DFGetAllProvidersOf("STORE " + this.sessionKey).isEmpty()) {
-            Error("Sorry service STORE not found");
-            return Status.CLOSEPROBLEM;
-        }
-        storem = this.DFGetAllProvidersOf("STORE " + sessionKey).get(0);
-        outbox = new ACLMessage();
-        outbox.setSender(getAID());
-        outbox.addReceiver(new AID(storem, AID.ISLOCALNAME));
-        outbox.setContent("QUERY PRODUCTS SESSION " + this.sessionKey);
-        this.LARVAsend(outbox);
-        store = this.LARVAblockingReceive();
-        Info("ShoppingList for STORE agent " + storem + ": " + store.getContent());
-        outbox = new ACLMessage();
-        outbox.setSender(getAID());
-        outbox.addReceiver(new AID(storem, AID.ISLOCALNAME));
-        for (int i = 0; i < _mySensors.length; i++) {
-            Info("Request sensor " + _mySensors[i] + " to " + storem);
-            outbox.setContent("REQUEST PRODUCT " + _mySensors[i] + " SESSION " + sessionKey);
-            LARVAsend(outbox);
-            store = LARVAblockingReceive();
-            myAttachments[i] = store.getContent().split(" ")[2];
-            message += _mySensors[i] + "  " + myAttachments[i] + "\n";
-        }
-        message += "\nContinue to solve problem?";
-//        if (this.Confirm(message)) {
-//            return Status.JOINPROBLEM;
-//        } else {
-//            return Status.CLOSEPROBLEM;
-//        }
-        Ole okey = new Ole();
-        okey.setField("sessionkey", sessionKey);
-        okey.setField("sessionmanager", sessionManager);
-        okey.setField("storemanager", storem);
-        okey.saveAsFile("./", "session.key", true);
-        Info("Comissioning is over");
-        return Status.JOINPROBLEM;
 
     }
 
@@ -325,137 +342,12 @@ public class Rover_Subsumption extends LARVAFirstAgent {
         return Status.CHECKOUT;
     }
 
-    Status CheckOut() {
+    Status checkOut() {
         Info("Checking out");
         this.doLARVACheckout();
         return Status.EXIT;
     }
 
-    @Override
-    public double Reward(Environment E) {
-        return E.getDistance();
-    }
-
-//    protected boolean G(Environment E) {
-//        if (!Ve(E)) {
-//            return false;
-//        }
-//        return E.getOntarget();
-//    }
-//
-//    protected boolean Ve(Environment E) {
-//        if (E == null || E.getGround() < 0
-//                || E.getGPS().getX() < 0 || E.getGPS().getX() >= E.getWorldWidth()
-//                || E.getGPS().getY() < 0 || E.getGPS().getY() >= E.getWorldHeight()
-//                || E.getEnergy() == 0) {
-//            return false;
-//        }
-//        return true;
-//    }
-//    @Override
-//    protected Choice Ag(Environment E, DecisionSet A) {
-//        if (G(E)) {
-//            return null;
-//        } else if (A.isEmpty()) {
-//            return null;
-//        } else {
-//            A = Prioritize(E, A);
-//            if (A.BestChoice().getName().equals("IDLE")) {
-//                return A.SecondBestChoice();
-//            } else {
-//                return A.BestChoice();
-//            }
-//        }
-//    }
-//    @Override
-//    protected Environment T(Environment E, Choice a) {
-//        return null;
-//    }
-//
-//    @Override
-//    public boolean Va(Environment E, Choice a) {
-//        return false;
-//    }
-//
-//    @Override
-//    protected double U(Environment E) {
-//        return 0;
-//    }
-    @Override
-    protected DecisionSet Prioritize(Environment E, DecisionSet A) {
-        Subsumption.setDecisionSet(A);
-        return Subsumption.MakeBestDecision(E);
-    }
-
-    Status solveProblem() {
-        // Analizar objetivo
-        if (G(E)) {
-            Info("The problem is over");
-            this.Message("The problem " + problemName + " has been solved");
-            return Status.CLOSEPROBLEM;
-        }
-        this.printMyStatusSSA(E, A);
-        // Game over
-        Choice a = Ag(E, A);
-        if (a == null) {
-            Info("Found no action to execute");
-            Alert("Found no action to execute");
-            return Status.CLOSEPROBLEM;
-        } else if (a.getName().equals("HALT") || a.getName().equals("IDLE")) {
-            Info("Halting the problem");
-            Alert("Halting the problem");
-            return Status.CLOSEPROBLEM;
-        } else {// Execute
-            Info("Excuting " + a);
-            this.doExecute(a);
-            doReadPerceptions();
-            this.printMyStatusSSA(E, A);
-            if (!Ve(E)) {
-                this.Error("The agent is not alive");
-                return Status.CLOSEPROBLEM;
-            }
-            return mystatus;
-        }
-    }
-
-//    Status solveProblem() {
-//        Status next;
-//        /// Percibir        
-//        doReadPerceptions();
-//
-//        // Analizar objetivo
-//        // Analizar objetivo
-//        if (G(E)) {
-//            Info("The problem is over");
-//            this.Message("The problem " + problemName + " has been solved");
-//            next = Status.CLOSEPROBLEM;
-//        } else if (!Ve(E)) {
-//            this.Error("The agent is not alive");
-//            next = Status.CLOSEPROBLEM;
-//        } else {
-//            // Decide
-//            Choice a = Ag(E, A);
-//            Info("Found plan" + A);
-//            // Game over
-//            if (a == null) {
-//                Info("Found no action to execute");
-//                Alert("Found no action to execute");
-//                next = Status.CLOSEPROBLEM;
-//            } else if (a.getName().equals("HALT")) {
-//                Info("Halting the problem");
-//                Alert("Halting the problem");
-//                next = Status.CLOSEPROBLEM;
-//            } else {// Execute
-//                Info("Excuting " + a);
-////                while (E.getCompass())
-//                this.doExecute(a);
-//                next = mystatus;
-//            }
-//        }
-//        Info(Subsumption.toString());
-//        this.printMyStatusSSA();
-//        return next;
-//    }
     protected void SSA2_JustMove() {
         Rule r;
 
@@ -845,5 +737,4 @@ public class Rover_Subsumption extends LARVAFirstAgent {
     public String value(String x) {
         return Console.defText(Console.gray) + x;
     }
-
 }

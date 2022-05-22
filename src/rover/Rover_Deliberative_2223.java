@@ -19,14 +19,16 @@ import geometry.Point3D;
 import jade.core.AID;
 import jade.lang.acl.ACLMessage;
 import java.util.Collections;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import messaging.Sentence;
 import swing.OleDialog;
 import world.Perceptor;
 
-public class Rover_Deliberative extends LARVAFirstAgent {
+public class Rover_Deliberative_2223 extends LARVAFirstAgent {
 
     enum Status {
-        CHECKIN, CHECKOUT, OPENPROBLEM, COMISSIONING, JOINPROBLEM, SOLVEPROBLEM, DEAD, CLOSEPROBLEM, EXIT, BLOCKED,
+        CHECKIN, CHECKOUT, OPENPROBLEM, JOINPROBLEM, SOLVEPROBLEM, DEAD, CLOSEPROBLEM, EXIT, BLOCKED,
     }
     Status mystatus, mysubstatus;
     String service = "PManager",
@@ -36,7 +38,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
     // Heuristic0
 
     ACLMessage _inbox, _outbox;
-    String _key, _EMPTY = "", map = "World6";
+    String _key, _EMPTY = "", map = "World6", alias = "CHOCOLATE";
 
     // DBA2021
     String _receiver;
@@ -54,21 +56,23 @@ public class Rover_Deliberative extends LARVAFirstAgent {
         glossary.Sensors.VISUAL.name()
     }, myAttachments[] = new String[_mySensors.length];
 
-    boolean step = true, showConsole = false;
+    boolean step = true;
 
     Console console;
     int cw = 100, ch = 100;
     int limitEnergy = 400;
     double originaldistance;
     boolean border = false;
+    String sessionAlias = "CHOCOLATE";
 
     @Override
     public void setup() {
         super.setup();
+
         OleConfig problemCfg = new OleConfig();
         problemCfg.loadFile("config/Problems.conf");
         problemName = problemCfg.getTab("LARVA").getField("Problem");
-        showConsole = this.oleConfig.getTab("Display").getBoolean("Show console");
+
         logger.onTabular();
         logger.onOverwrite();
         logger.setLoggerFileName(getAID().getLocalName() + ".json");
@@ -76,9 +80,11 @@ public class Rover_Deliberative extends LARVAFirstAgent {
         myAttachments = new String[_mySensors.length];
         mystatus = Status.CHECKIN;
         _key = "";
+        this.DFSetMyServices(new String[]{"TYPE HUMMER"});
+        Choice.setIncreasing();
         A = new DecisionSet();
         E = new Environment();
-//         E.setTarget(new Point3D(0,0,0));
+//        E.setTarget(new Point3D(0,0,0));
         step = true;
         A.
                 addChoice(new Choice("HALT")).
@@ -89,36 +95,11 @@ public class Rover_Deliberative extends LARVAFirstAgent {
         this.doNotExit();
     }
 
-    //    @Override
-//    protected boolean Ve(Environment E) {
-//        return super.Ve(E) && E.isMemoryGPS(E.getGPS())<0;
-//    }
-//    @Override
-//    protected boolean Ve(Environment E) {
-//        if (E == null || E.isCrahsed()
-//                || E.getGPSMemory().getX() < 0 || E.getGPSMemory().getX() >= E.getWorldWidth()
-//                || E.getGPSMemory().getY() < 0 || E.getGPSMemory().getY() >= E.getWorldHeight()
-//                || E.getAltitude() < E.getMinlevel() || E.getAltitude() > E.getMaxlevel()
-//                || E.getEnergy() == 0) {
-//            return false;
-//        }
-//        return true;
-//    }
-//    @Override
-//    protected boolean G(Environment E) {
-//        if (!Ve(E)) {
-//            return false;
-//        }
-//        return E.getOntarget();
-//    }
-//    @Override
-//    protected Environment T(Environment E, Choice a) {
-//        if (!Ve(E)) {
-//            return null;
-//        } else {
-//            return E.simmulate(a);
-//        }
-//    }
+    @Override
+    public double Reward(Environment E) {
+        return E.getDistance();
+    }
+
     @Override
     public boolean Va(Environment E, Choice a) {
         return VaV5(E, a);
@@ -313,8 +294,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
                 a.setUtility(Choice.MAX_UTILITY);
             }
         }
-        Collections.sort(A);
-        Collections.reverse(A);
+        A.sort();
         return A;
     }
 
@@ -331,18 +311,12 @@ public class Rover_Deliberative extends LARVAFirstAgent {
 //    }
     protected Plan AgP(Environment E, DecisionSet A) {
         Plan plan = new Plan();
-//        for (int i = 0; i < 10; i++) {
-//            plan.add(new Choice("MOVE"));
-//        }
-//        plan.add(new Choice("LEFT"));
-//        plan.add(new Choice("LEFT"));
-//        return plan;
+
         Choice a;
         System.out.println("Searching plan");
         Environment Ei, Ef;
         Ei = E;
         for (int i = 0; i < E.getRange() / 2 - 2; i++) {
-//        for (int i = 0; i < 6; i++) { //E.getAbsoluteLidar()[0].length/2-2; i++) {
             if (Ei == null) {
                 return plan;
             } else if (G(Ei)) {
@@ -353,7 +327,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
                 a = Ag(Ei, A);
                 this.printMyStatusFunctional(Ei, A);
                 this.waitRemoteSemaphore();
-                if (a != null && a.getUtility() != Perceptor.NULLREAD && !a.getName().equals("IDLE") && !G(E)) {
+                if (a != null && a.getUtility() != Perceptor.NULLREAD && !a.getName().equals("HALT") && !G(E)) {
                     plan.add(a);
                     Ef = Ei.simmulate(a);
                     Ei = Ef;
@@ -364,34 +338,14 @@ public class Rover_Deliberative extends LARVAFirstAgent {
         return plan;
     }
 
-    @Override
-    protected Choice Ag(Environment E, DecisionSet A) {
-        if (G(E)) {
-            return null;
-        } else if (A.isEmpty()) {
-            return null;
-        } else {
-            A = Prioritize(E, A);
-            return A.BestChoice();
-        }
-    }
-
-    Status solveProblemDeliberative() {
-        /// Percibir        
-        doReadPerceptions();
-
+    Status solveProblem() {
         // Analizar objetivo
         if (G(E)) {
             Info("The problem is over");
             this.Message("The problem " + problemName + " has been solved");
             return Status.CLOSEPROBLEM;
         }
-        if (!Ve(E)) {
-            this.Error("The agent is not alive");
-            return Status.CLOSEPROBLEM;
-        }
-//        printMyStatusFunctional(E, A);
-
+        printMyStatusFunctional(E, A);
         // Game over
         Plan plan = AgP(E, A);
         while (!plan.isEmpty()) {
@@ -404,16 +358,14 @@ public class Rover_Deliberative extends LARVAFirstAgent {
             } else {// Execute
                 Info("Excuting " + a);
                 this.doExecute(a);
+                doReadPerceptions();
                 this.printMyStatusFunctional(E, A);
-//                try {
-//                    Thread.sleep(this.frameDelay / 5);
-//                } catch (Exception ex) {
-//                }
             }
         }
         return mystatus;
     }
-//    @Override
+    //
+    //    @Override
 
     public void Execute() {
 
@@ -425,9 +377,6 @@ public class Rover_Deliberative extends LARVAFirstAgent {
             case OPENPROBLEM:
                 mystatus = openProblem(problemName);
                 break;
-            case COMISSIONING:
-                mystatus = getResources();
-                break;
             case JOINPROBLEM:
                 mystatus = joinProblem();
                 if (showConsole) {
@@ -435,7 +384,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
                 }
                 break;
             case SOLVEPROBLEM:
-                mystatus = solveProblemDeliberative();
+                mystatus = solveProblem();
                 break;
             case CLOSEPROBLEM:
                 mystatus = closeProblem();
@@ -451,6 +400,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
                 this.doExit();
                 break;
         }
+//        System.out.println(E.getDeepPerceptions().printStatus("Myself"));
     }
 
     @Override
@@ -473,6 +423,27 @@ public class Rover_Deliberative extends LARVAFirstAgent {
     }
 
     Status openProblem(String problemName) {
+        // First check  if alias is open
+        String opener;
+        if (this.DFGetAllProvidersOf("OPEN SESSION " + sessionAlias).size() > 0) {
+            Info("Session " + sessionAlias + " seems to be already open");
+            opener = this.DFGetAllProvidersOf("OPEN SESSION " + sessionAlias).get(0);
+            for (String service : this.DFGetAllServicesProvidedBy(opener)) {
+                if (service.startsWith(sessionAlias)) {
+                    sessionKey = service.split(" ")[1];
+                    if (this.DFGetAllProvidersOf("SESSION MANAGER " + this.sessionKey).isEmpty()) {
+                        Error("Sorry service SESSION MANAGER not found");
+                        return Status.CLOSEPROBLEM;
+                    }
+                    this.sessionManager = this.DFGetAllProvidersOf("SESSION MANAGER " + this.sessionKey).get(0);
+                    Info("Assigned to " + sessionManager + " in problem " + problemName + " during session " + sessionKey);
+                    return Status.JOINPROBLEM;
+                }
+            }
+            Error("Sorry service SESSION MANAGER not found");
+            return Status.CHECKOUT;
+
+        }
         Info("Searching who is ProblemManager");
         if (this.DFGetAllProvidersOf(service).isEmpty()) {
             Error("Service " + service + " is down");
@@ -484,7 +455,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
         this.outbox = new ACLMessage();
         outbox.setSender(getAID());
         outbox.addReceiver(new AID(problemManager, AID.ISLOCALNAME));
-        outbox.setContent("Request open " + problemName);
+        outbox.setContent("Request open " + problemName + " alias chocolate");
         this.LARVAsend(outbox);
         open = LARVAblockingReceive();
         if (open == null) {
@@ -495,58 +466,15 @@ public class Rover_Deliberative extends LARVAFirstAgent {
         mySentence = new Sentence().parseSentence(open.getContent());
         if (mySentence.isNext("AGREE")) {
             sessionKey = mySentence.next(3);
+            this.DFAddMyServices(new String[]{"OPEN SESSION CHOCOLATE", "CHOCOLATE " + sessionKey});
             inbox = LARVAblockingReceive();
             sessionManager = inbox.getSender().getLocalName();
             Info("Assigned to " + sessionManager + " in problem " + problemName + " during session " + sessionKey);
-            return Status.COMISSIONING;
+            return Status.JOINPROBLEM;
         } else {
             Error(mySentence.getSentence());
             return Status.CHECKOUT;
         }
-
-    }
-
-    public Status getResources() {
-        String storem;
-        String message = "Acquired the following products\n";
-
-        Info("Searching for stores to commision the sensors");
-        if (this.DFGetAllProvidersOf("STORE " + this.sessionKey).isEmpty()) {
-            Error("Sorry service STORE not found");
-            return Status.CLOSEPROBLEM;
-        }
-        storem = this.DFGetAllProvidersOf("STORE " + sessionKey).get(0);
-        outbox = new ACLMessage();
-        outbox.setSender(getAID());
-        outbox.addReceiver(new AID(storem, AID.ISLOCALNAME));
-        outbox.setContent("QUERY PRODUCTS SESSION " + this.sessionKey);
-        this.LARVAsend(outbox);
-        store = this.LARVAblockingReceive();
-        Info("ShoppingList for STORE agent " + storem + ": " + store.getContent());
-        outbox = new ACLMessage();
-        outbox.setSender(getAID());
-        outbox.addReceiver(new AID(storem, AID.ISLOCALNAME));
-        for (int i = 0; i < _mySensors.length; i++) {
-            Info("Request sensor " + _mySensors[i] + " to " + storem);
-            outbox.setContent("REQUEST PRODUCT " + _mySensors[i] + " SESSION " + sessionKey);
-            LARVAsend(outbox);
-            store = LARVAblockingReceive();
-            myAttachments[i] = store.getContent().split(" ")[2];
-            message += _mySensors[i] + "  " + myAttachments[i] + "\n";
-        }
-        message += "\nContinue to solve problem?";
-//        if (this.Confirm(message)) {
-//            return Status.JOINPROBLEM;
-//        } else {
-//            return Status.CLOSEPROBLEM;
-//        }
-        Ole okey = new Ole();
-        okey.setField("sessionkey", sessionKey);
-        okey.setField("sessionmanager", sessionManager);
-        okey.setField("storemanager", storem);
-        okey.saveAsFile("./", "session.key", true);
-        Info("Comissioning is over");
-        return Status.JOINPROBLEM;
 
     }
 
@@ -565,6 +493,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
         mySentence = new Sentence().parseSentence(inbox.getContent());
         if (mySentence.isNext("CONFIRM")) {
             Info("Session manager " + sessionManager + " has joined to the session " + sessionKey);
+            this.doReadPerceptions();
             return Status.SOLVEPROBLEM;
         } else {
             Info("Could not join the session " + sessionKey);
@@ -650,11 +579,6 @@ public class Rover_Deliberative extends LARVAFirstAgent {
                     E.getDistance(), E.getAngular(), E.getRelativeAngular());
         }
         console.print(svalue);
-        if (E.getOntarget()) {
-            console.print("  +++ONTRG++++");
-        } else {
-            console.print("  ---ONTRG----");
-        }
         int Obstacle[][] = E.getShortRadar();
         console.setCursorXY(2, 8);
         console.print(label("RADAR"

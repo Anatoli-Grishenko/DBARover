@@ -19,11 +19,13 @@ import geometry.Point3D;
 import jade.core.AID;
 import jade.lang.acl.ACLMessage;
 import java.util.Collections;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import messaging.Sentence;
 import swing.OleDialog;
 import world.Perceptor;
 
-public class Rover_Deliberative extends LARVAFirstAgent {
+public class Rover_Reactive_2122 extends LARVAFirstAgent {
 
     enum Status {
         CHECKIN, CHECKOUT, OPENPROBLEM, COMISSIONING, JOINPROBLEM, SOLVEPROBLEM, DEAD, CLOSEPROBLEM, EXIT, BLOCKED,
@@ -54,7 +56,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
         glossary.Sensors.VISUAL.name()
     }, myAttachments[] = new String[_mySensors.length];
 
-    boolean step = true, showConsole = false;
+    boolean step = true;
 
     Console console;
     int cw = 100, ch = 100;
@@ -65,10 +67,11 @@ public class Rover_Deliberative extends LARVAFirstAgent {
     @Override
     public void setup() {
         super.setup();
+
         OleConfig problemCfg = new OleConfig();
         problemCfg.loadFile("config/Problems.conf");
         problemName = problemCfg.getTab("LARVA").getField("Problem");
-        showConsole = this.oleConfig.getTab("Display").getBoolean("Show console");
+
         logger.onTabular();
         logger.onOverwrite();
         logger.setLoggerFileName(getAID().getLocalName() + ".json");
@@ -76,9 +79,10 @@ public class Rover_Deliberative extends LARVAFirstAgent {
         myAttachments = new String[_mySensors.length];
         mystatus = Status.CHECKIN;
         _key = "";
+        Choice.setIncreasing();
         A = new DecisionSet();
         E = new Environment();
-//         E.setTarget(new Point3D(0,0,0));
+//        E.setTarget(new Point3D(0,0,0));
         step = true;
         A.
                 addChoice(new Choice("HALT")).
@@ -89,7 +93,12 @@ public class Rover_Deliberative extends LARVAFirstAgent {
         this.doNotExit();
     }
 
-    //    @Override
+    @Override
+    public double Reward(Environment E) {
+        return E.getDistance();
+    }
+
+//    @Override
 //    protected boolean Ve(Environment E) {
 //        return super.Ve(E) && E.isMemoryGPS(E.getGPS())<0;
 //    }
@@ -281,7 +290,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
                         return true;
                     } else {
                         originaldistance = E.getDistance();
-                        border = true;
+                        border = true;                        
                     }
             }
         }
@@ -313,8 +322,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
                 a.setUtility(Choice.MAX_UTILITY);
             }
         }
-        Collections.sort(A);
-        Collections.reverse(A);
+        A.sort();
         return A;
     }
 
@@ -329,91 +337,38 @@ public class Rover_Deliberative extends LARVAFirstAgent {
 //            return A.BestChoice();
 //        }
 //    }
-    protected Plan AgP(Environment E, DecisionSet A) {
-        Plan plan = new Plan();
-//        for (int i = 0; i < 10; i++) {
-//            plan.add(new Choice("MOVE"));
-//        }
-//        plan.add(new Choice("LEFT"));
-//        plan.add(new Choice("LEFT"));
-//        return plan;
-        Choice a;
-        System.out.println("Searching plan");
-        Environment Ei, Ef;
-        Ei = E;
-        for (int i = 0; i < E.getRange() / 2 - 2; i++) {
-//        for (int i = 0; i < 6; i++) { //E.getAbsoluteLidar()[0].length/2-2; i++) {
-            if (Ei == null) {
-                return plan;
-            } else if (G(Ei)) {
-                return plan;
-            } else if (A.isEmpty()) {
-                return plan;
-            } else {
-                a = Ag(Ei, A);
-                this.printMyStatusFunctional(Ei, A);
-                this.waitRemoteSemaphore();
-                if (a != null && a.getUtility() != Perceptor.NULLREAD && !a.getName().equals("IDLE") && !G(E)) {
-                    plan.add(a);
-                    Ef = Ei.simmulate(a);
-                    Ei = Ef;
-                }
-                this.printMyStatusFunctional(Ei, A);
-            }
-        }
-        return plan;
-    }
-
-    @Override
-    protected Choice Ag(Environment E, DecisionSet A) {
-        if (G(E)) {
-            return null;
-        } else if (A.isEmpty()) {
-            return null;
-        } else {
-            A = Prioritize(E, A);
-            return A.BestChoice();
-        }
-    }
-
-    Status solveProblemDeliberative() {
-        /// Percibir        
-        doReadPerceptions();
-
+    Status solveProblem() {
         // Analizar objetivo
         if (G(E)) {
             Info("The problem is over");
             this.Message("The problem " + problemName + " has been solved");
             return Status.CLOSEPROBLEM;
         }
-        if (!Ve(E)) {
-            this.Error("The agent is not alive");
-            return Status.CLOSEPROBLEM;
-        }
-//        printMyStatusFunctional(E, A);
-
+        printMyStatusFunctional(E, A);
         // Game over
-        Plan plan = AgP(E, A);
-        while (!plan.isEmpty()) {
-            Choice a = plan.get(0);
-            plan.remove(0);
-            if (a.getName().equals("HALT")) {
-                Info("Halting the problem");
-                Alert("Halting the problem");
+        Choice a = Ag(E, A);
+        if (a == null) {
+            Info("Found no action to execute");
+            Alert("Found no action to execute");
+            return Status.CLOSEPROBLEM;
+        } else if (a.getName().equals("HALT") || a.getName().equals("IDLE")) {
+            Info("Halting the problem");
+            Alert("Halting the problem");
+            return Status.CLOSEPROBLEM;
+        } else {// Execute
+            Info("Excuting " + a);
+            this.doExecute(a);
+            doReadPerceptions();
+            printMyStatusFunctional(E, A);
+            if (!Ve(E)) {
+                this.Error("The agent is not alive");
                 return Status.CLOSEPROBLEM;
-            } else {// Execute
-                Info("Excuting " + a);
-                this.doExecute(a);
-                this.printMyStatusFunctional(E, A);
-//                try {
-//                    Thread.sleep(this.frameDelay / 5);
-//                } catch (Exception ex) {
-//                }
             }
+            return mystatus;
         }
-        return mystatus;
     }
-//    @Override
+    //
+    //    @Override
 
     public void Execute() {
 
@@ -435,7 +390,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
                 }
                 break;
             case SOLVEPROBLEM:
-                mystatus = solveProblemDeliberative();
+                mystatus = solveProblem();
                 break;
             case CLOSEPROBLEM:
                 mystatus = closeProblem();
@@ -451,6 +406,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
                 this.doExit();
                 break;
         }
+//        System.out.println(E.getDeepPerceptions().printStatus("Myself"));
     }
 
     @Override
@@ -565,6 +521,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
         mySentence = new Sentence().parseSentence(inbox.getContent());
         if (mySentence.isNext("CONFIRM")) {
             Info("Session manager " + sessionManager + " has joined to the session " + sessionKey);
+            this.doReadPerceptions();
             return Status.SOLVEPROBLEM;
         } else {
             Info("Could not join the session " + sessionKey);
@@ -650,11 +607,6 @@ public class Rover_Deliberative extends LARVAFirstAgent {
                     E.getDistance(), E.getAngular(), E.getRelativeAngular());
         }
         console.print(svalue);
-        if (E.getOntarget()) {
-            console.print("  +++ONTRG++++");
-        } else {
-            console.print("  ---ONTRG----");
-        }
         int Obstacle[][] = E.getShortRadar();
         console.setCursorXY(2, 8);
         console.print(label("RADAR"

@@ -9,10 +9,9 @@ public class Rover {
         LARVABoot connection = new LARVABoot(LARVABoot.METAL);
 
 //            connection.Boot("localhost",1099);
-            connection.loadAgent("RReactive", Rover_Reactive.class);
-            connection.loadAgent("RDeliberative", Rover_Deliberative.class);
-//            connection.loadAgent("DeliberativeA", TieExplorerAI_Deliberative2.class);
-            connection.loadAgent("RSubsumption", Rover_Subsumption.class);
+            connection.loadAgent("RReactive2223", Rover_Reactive_2223.class);
+            connection.loadAgent("RDeliberative2223", Rover_Deliberative_2223.class);
+            connection.loadAgent("RSubsumption2223", Rover_Subsumption_2223.class);
             
         connection.WaitToShutDown();
 //        jade.WaitToClose().ShutDown();

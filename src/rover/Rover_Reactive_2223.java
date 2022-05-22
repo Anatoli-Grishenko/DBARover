@@ -25,10 +25,10 @@ import messaging.Sentence;
 import swing.OleDialog;
 import world.Perceptor;
 
-public class Rover_Reactive extends LARVAFirstAgent {
+public class Rover_Reactive_2223 extends LARVAFirstAgent {
 
     enum Status {
-        CHECKIN, CHECKOUT, OPENPROBLEM, COMISSIONING, JOINPROBLEM, SOLVEPROBLEM, DEAD, CLOSEPROBLEM, EXIT, BLOCKED,
+        CHECKIN, CHECKOUT, OPENPROBLEM, JOINPROBLEM, SOLVEPROBLEM, DEAD, CLOSEPROBLEM, EXIT, BLOCKED,
     }
     Status mystatus, mysubstatus;
     String service = "PManager",
@@ -38,7 +38,7 @@ public class Rover_Reactive extends LARVAFirstAgent {
     // Heuristic0
 
     ACLMessage _inbox, _outbox;
-    String _key, _EMPTY = "", map = "World6";
+    String _key, _EMPTY = "", map = "World6", alias = "CHOCOLATE";
 
     // DBA2021
     String _receiver;
@@ -63,6 +63,7 @@ public class Rover_Reactive extends LARVAFirstAgent {
     int limitEnergy = 400;
     double originaldistance;
     boolean border = false;
+    String sessionAlias = "CHOCOLATE";
 
     @Override
     public void setup() {
@@ -79,6 +80,8 @@ public class Rover_Reactive extends LARVAFirstAgent {
         myAttachments = new String[_mySensors.length];
         mystatus = Status.CHECKIN;
         _key = "";
+        this.DFSetMyServices(new String[]{"TYPE HUMMER"});
+        Choice.setIncreasing();
         A = new DecisionSet();
         E = new Environment();
 //        E.setTarget(new Point3D(0,0,0));
@@ -289,7 +292,7 @@ public class Rover_Reactive extends LARVAFirstAgent {
                         return true;
                     } else {
                         originaldistance = E.getDistance();
-                        border = true;                        
+                        border = true;
                     }
             }
         }
@@ -321,8 +324,7 @@ public class Rover_Reactive extends LARVAFirstAgent {
                 a.setUtility(Choice.MAX_UTILITY);
             }
         }
-        Collections.sort(A);
-        Collections.reverse(A);
+        A.sort();
         return A;
     }
 
@@ -380,9 +382,6 @@ public class Rover_Reactive extends LARVAFirstAgent {
             case OPENPROBLEM:
                 mystatus = openProblem(problemName);
                 break;
-            case COMISSIONING:
-                mystatus = getResources();
-                break;
             case JOINPROBLEM:
                 mystatus = joinProblem();
                 if (showConsole) {
@@ -429,6 +428,27 @@ public class Rover_Reactive extends LARVAFirstAgent {
     }
 
     Status openProblem(String problemName) {
+        // First check  if alias is open
+        String opener;
+        if (this.DFGetAllProvidersOf("OPEN SESSION " + sessionAlias).size() > 0) {
+            Info("Session "+sessionAlias+" seems to be already open");
+            opener = this.DFGetAllProvidersOf("OPEN SESSION " + sessionAlias).get(0);
+            for (String service : this.DFGetAllServicesProvidedBy(opener)) {
+                if (service.startsWith(sessionAlias)) {
+                    sessionKey = service.split(" ")[1];
+                    if (this.DFGetAllProvidersOf("SESSION MANAGER " + this.sessionKey).isEmpty()) {
+                        Error("Sorry service SESSION MANAGER not found");
+                        return Status.CLOSEPROBLEM;
+                    }
+                    this.sessionManager = this.DFGetAllProvidersOf("SESSION MANAGER " + this.sessionKey).get(0);
+                    Info("Assigned to " + sessionManager + " in problem " + problemName + " during session " + sessionKey);
+                    return Status.JOINPROBLEM;
+                }
+            }
+            Error("Sorry service SESSION MANAGER not found");
+            return Status.CHECKOUT;
+
+        }
         Info("Searching who is ProblemManager");
         if (this.DFGetAllProvidersOf(service).isEmpty()) {
             Error("Service " + service + " is down");
@@ -440,7 +460,7 @@ public class Rover_Reactive extends LARVAFirstAgent {
         this.outbox = new ACLMessage();
         outbox.setSender(getAID());
         outbox.addReceiver(new AID(problemManager, AID.ISLOCALNAME));
-        outbox.setContent("Request open " + problemName);
+        outbox.setContent("Request open " + problemName + " alias chocolate");
         this.LARVAsend(outbox);
         open = LARVAblockingReceive();
         if (open == null) {
@@ -451,58 +471,15 @@ public class Rover_Reactive extends LARVAFirstAgent {
         mySentence = new Sentence().parseSentence(open.getContent());
         if (mySentence.isNext("AGREE")) {
             sessionKey = mySentence.next(3);
+            this.DFAddMyServices(new String[]{"OPEN SESSION CHOCOLATE", "CHOCOLATE " + sessionKey});
             inbox = LARVAblockingReceive();
             sessionManager = inbox.getSender().getLocalName();
             Info("Assigned to " + sessionManager + " in problem " + problemName + " during session " + sessionKey);
-            return Status.COMISSIONING;
+            return Status.JOINPROBLEM;
         } else {
             Error(mySentence.getSentence());
             return Status.CHECKOUT;
         }
-
-    }
-
-    public Status getResources() {
-        String storem;
-        String message = "Acquired the following products\n";
-
-        Info("Searching for stores to commision the sensors");
-        if (this.DFGetAllProvidersOf("STORE " + this.sessionKey).isEmpty()) {
-            Error("Sorry service STORE not found");
-            return Status.CLOSEPROBLEM;
-        }
-        storem = this.DFGetAllProvidersOf("STORE " + sessionKey).get(0);
-        outbox = new ACLMessage();
-        outbox.setSender(getAID());
-        outbox.addReceiver(new AID(storem, AID.ISLOCALNAME));
-        outbox.setContent("QUERY PRODUCTS SESSION " + this.sessionKey);
-        this.LARVAsend(outbox);
-        store = this.LARVAblockingReceive();
-        Info("ShoppingList for STORE agent " + storem + ": " + store.getContent());
-        outbox = new ACLMessage();
-        outbox.setSender(getAID());
-        outbox.addReceiver(new AID(storem, AID.ISLOCALNAME));
-        for (int i = 0; i < _mySensors.length; i++) {
-            Info("Request sensor " + _mySensors[i] + " to " + storem);
-            outbox.setContent("REQUEST PRODUCT " + _mySensors[i] + " SESSION " + sessionKey);
-            LARVAsend(outbox);
-            store = LARVAblockingReceive();
-            myAttachments[i] = store.getContent().split(" ")[2];
-            message += _mySensors[i] + "  " + myAttachments[i] + "\n";
-        }
-        message += "\nContinue to solve problem?";
-//        if (this.Confirm(message)) {
-//            return Status.JOINPROBLEM;
-//        } else {
-//            return Status.CLOSEPROBLEM;
-//        }
-        Ole okey = new Ole();
-        okey.setField("sessionkey", sessionKey);
-        okey.setField("sessionmanager", sessionManager);
-        okey.setField("storemanager", storem);
-        okey.saveAsFile("./", "session.key", true);
-        Info("Comissioning is over");
-        return Status.JOINPROBLEM;
 
     }
 
