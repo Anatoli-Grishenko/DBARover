@@ -59,11 +59,11 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
     boolean step = true;
 
     Console console;
-    int cw = 100, ch = 100;
+    int cw = 100, ch = 100, bx, by;
     int limitEnergy = 400;
     double originaldistance;
     boolean border = false;
-    String sessionAlias = "CHOCOLATE";
+    String sessionAlias, city;
 
     @Override
     public void setup() {
@@ -72,7 +72,10 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
         OleConfig problemCfg = new OleConfig();
         problemCfg.loadFile("config/Problems.conf");
         problemName = problemCfg.getTab("LARVA").getField("Problem");
-
+        sessionAlias = problemCfg.getTab("LARVA").getField("Session alias");
+        city = problemCfg.getTab("LARVA").getField("Base");
+        bx = problemCfg.getTab("LARVA").getInt("X");
+        by = problemCfg.getTab("LARVA").getInt("Y");
         logger.onTabular();
         logger.onOverwrite();
         logger.setLoggerFileName(getAID().getLocalName() + ".json");
@@ -84,7 +87,6 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
         Choice.setIncreasing();
         A = new DecisionSet();
         E = new Environment();
-//        E.setTarget(new Point3D(0,0,0));
         step = true;
         A.
                 addChoice(new Choice("HALT")).
@@ -100,36 +102,6 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
         return E.getDistance();
     }
 
-//    @Override
-//    protected boolean Ve(Environment E) {
-//        return super.Ve(E) && E.isMemoryGPS(E.getGPS())<0;
-//    }
-//    @Override
-//    protected boolean Ve(Environment E) {
-//        if (E == null || E.isCrahsed()
-//                || E.getGPSMemory().getX() < 0 || E.getGPSMemory().getX() >= E.getWorldWidth()
-//                || E.getGPSMemory().getY() < 0 || E.getGPSMemory().getY() >= E.getWorldHeight()
-//                || E.getAltitude() < E.getMinlevel() || E.getAltitude() > E.getMaxlevel()
-//                || E.getEnergy() == 0) {
-//            return false;
-//        }
-//        return true;
-//    }
-//    @Override
-//    protected boolean G(Environment E) {
-//        if (!Ve(E)) {
-//            return false;
-//        }
-//        return E.getOntarget();
-//    }
-//    @Override
-//    protected Environment T(Environment E, Choice a) {
-//        if (!Ve(E)) {
-//            return null;
-//        } else {
-//            return E.simmulate(a);
-//        }
-//    }
     @Override
     public boolean Va(Environment E, Choice a) {
         return VaV5(E, a);
@@ -328,17 +300,6 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
         return A;
     }
 
-//    @Override
-//    protected Choice Ag(Environment E, DecisionSet A) {
-//        if (G(E)) {
-//            return null;
-//        } else if (A.isEmpty()) {
-//            return null;
-//        } else {
-//            A = Prioritize(E, A);
-//            return A.BestChoice();
-//        }
-//    }
     Status solveProblem() {
         // Analizar objetivo
         if (G(E)) {
@@ -383,7 +344,7 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
                 mystatus = openProblem(problemName);
                 break;
             case JOINPROBLEM:
-                mystatus = joinProblem();
+                mystatus = joinProblemNoAttach();
                 if (showConsole) {
                     console = new Console("Register of decisions", cw, ch, 8);
                 }
@@ -430,8 +391,8 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
     Status openProblem(String problemName) {
         // First check  if alias is open
         String opener;
-        if (this.DFGetAllProvidersOf("OPEN SESSION " + sessionAlias).size() > 0) {
-            Info("Session "+sessionAlias+" seems to be already open");
+        if (sessionAlias.length() > 0 && this.DFGetAllProvidersOf("OPEN SESSION " + sessionAlias).size() > 0) {
+            Info("Session " + sessionAlias + " seems to be already open");
             opener = this.DFGetAllProvidersOf("OPEN SESSION " + sessionAlias).get(0);
             for (String service : this.DFGetAllServicesProvidedBy(opener)) {
                 if (service.startsWith(sessionAlias)) {
@@ -460,7 +421,11 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
         this.outbox = new ACLMessage();
         outbox.setSender(getAID());
         outbox.addReceiver(new AID(problemManager, AID.ISLOCALNAME));
-        outbox.setContent("Request open " + problemName + " alias chocolate");
+        if (sessionAlias.length() > 0) {
+            outbox.setContent("Request open " + problemName + " alias " + sessionAlias);
+        } else {
+            outbox.setContent("Request open " + problemName);
+        }
         this.LARVAsend(outbox);
         open = LARVAblockingReceive();
         if (open == null) {
@@ -483,7 +448,7 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
 
     }
 
-    Status joinProblem() {
+    Status joinProblemAttach() {
         Info("Join problem " + problemName + " with " + sessionManager);
         String command = "Request join session " + sessionKey
                 + " attach sensors";
@@ -494,11 +459,41 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
         outbox.setContent(command);
         this.LARVAsend(outbox);
         inbox = LARVAblockingReceive();
-//        Info("Session Manager says: " + inbox.getContent());
         mySentence = new Sentence().parseSentence(inbox.getContent());
         if (mySentence.isNext("CONFIRM")) {
             Info("Session manager " + sessionManager + " has joined to the session " + sessionKey);
             this.doReadPerceptions();
+            return Status.SOLVEPROBLEM;
+        } else {
+            Info("Could not join the session " + sessionKey);
+            Error(mySentence.getSentence());
+            return Status.CLOSEPROBLEM;
+        }
+    }
+
+    Status joinProblemNoAttach() {
+        Info("Join problem " + problemName + " with " + sessionManager);
+        String command;
+        if (city.length() > 0) {
+            command = "Request join session " + sessionKey+ " in "+city;
+        } else {
+            command = "Request join session " + sessionKey;
+        }
+        outbox = inbox.createReply();
+        outbox.setContent(command);
+        this.LARVAsend(outbox);
+        inbox = LARVAblockingReceive();
+        mySentence = new Sentence().parseSentence(inbox.getContent());
+        if (mySentence.isNext("CONFIRM")) {
+            Info("Session manager " + sessionManager + " has joined to the session " + sessionKey);
+            this.doReadPerceptions();
+            String ctarget = this.inputLine(this.logger.getLastlog()+"\n\nPlease type destination");
+            if (ctarget !=null) {
+                outbox = inbox.createReply();
+                outbox.setContent("Query course in "+ctarget+" Session "+sessionKey);
+                this.LARVAsend(outbox);
+                inbox = this.LARVAblockingReceive();
+            }
             return Status.SOLVEPROBLEM;
         } else {
             Info("Could not join the session " + sessionKey);
@@ -629,21 +624,6 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
             }
             console.println("");
         }
-//        Obstacle = E.getAbsoluteLidar();
-//        console.println("Lidar");
-//        for (int y = 0; y < Obstacle.length; y++) {
-//            for (int x = 0; x < Obstacle[0].length; x++) {
-//                svalue = String.format("%4s",
-//                        (Obstacle[x][y] == Perceptor.NULLREAD
-//                                ? "XXX" : String.format("%3d", Obstacle[x][y])));
-//                if (x == Obstacle[0].length / 2 && y == Obstacle.length / 2) {
-//                    console.print(label(svalue));
-//                } else {
-//                    console.print(value(svalue));
-//                }
-//            }
-//            console.println("");
-//        }
         console.setCursorXY(2, 12);
         console.setText(Console.white);
         console.doFrame(1, 1, cw, 3);

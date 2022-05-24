@@ -1,0 +1,23 @@
+{
+    "options": {
+        "Objects": {
+            "Objects to Display": {
+                "Myself": true,
+                "Cities": true,
+                "Other agents": true
+            }
+        },
+        "Focus": {
+            "Keep focus on": "Myself"
+        },
+        "Type of map" :{
+        		"Display map":"Heightmap"
+        }
+    },
+    "properties": {
+        "Keep focus on": {
+            "select": ["Myself", "None"]
+        },
+        "Display map":{"select":["Heightmap","Real view","Curves", "None"]}
+    }
+}
