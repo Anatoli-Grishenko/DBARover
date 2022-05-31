@@ -136,7 +136,7 @@ public class Rover_Subsumption_Complete extends LARVAFirstAgent {
             this.SSA2_Recharge();
         }
         A.
-                addChoice(new Choice("HALT")).
+                addChoice(new Choice("STOP")).
                 addChoice(new Choice("IDLE")).
                 addChoice(new Choice("MOVE")).
                 addChoice(new Choice("LEFT")).
@@ -425,7 +425,7 @@ public class Rover_Subsumption_Complete extends LARVAFirstAgent {
                 Info("Found no action to execute");
                 Alert("Found no action to execute");
                 next = Status.CLOSEPROBLEM;
-            } else if (a.getName().equals("HALT")) {
+            } else if (a.getName().equals("STOP")) {
                 Info("Halting the problem");
                 Alert("Halting the problem");
                 next = Status.CLOSEPROBLEM;
@@ -509,7 +509,7 @@ public class Rover_Subsumption_Complete extends LARVAFirstAgent {
                     return E.getOntarget();
                 }).
                 setBody(() -> {
-                    return "HALT";
+                    return "STOP";
                 }));
 
     }

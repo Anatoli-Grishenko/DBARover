@@ -63,7 +63,7 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
     int limitEnergy = 400;
     double originaldistance;
     boolean border = false;
-    String sessionAlias, city;
+    String sessionAlias, city, wall = "NO", type;
 
     @Override
     public void setup() {
@@ -73,7 +73,7 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
         problemCfg.loadFile("config/Problems.conf");
         problemName = problemCfg.getTab("LARVA").getField("Problem");
         sessionAlias = problemCfg.getTab("LARVA").getField("Session alias");
-        city = problemCfg.getTab("LARVA").getField("Base");
+        type = problemCfg.getTab("LARVA").getField("Type");
         bx = problemCfg.getTab("LARVA").getInt("X");
         by = problemCfg.getTab("LARVA").getInt("Y");
         logger.onTabular();
@@ -83,17 +83,35 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
         myAttachments = new String[_mySensors.length];
         mystatus = Status.CHECKIN;
         _key = "";
-        this.DFSetMyServices(new String[]{"TYPE HUMMER"});
         Choice.setIncreasing();
         A = new DecisionSet();
         E = new Environment();
         step = true;
-        A.
-                addChoice(new Choice("HALT")).
-                addChoice(new Choice("IDLE")).
-                addChoice(new Choice("MOVE")).
-                addChoice(new Choice("LEFT")).
-                addChoice(new Choice("RIGHT"));
+        this.DFSetMyServices(new String[]{"TYPE " + type});
+        switch (type) {
+            default:
+            case "HEMTT":
+            case "HUMMER":
+            case "CORSAIR":
+                A.
+                        addChoice(new Choice("STOP")).
+                        addChoice(new Choice("IDLE")).
+                        addChoice(new Choice("MOVE")).
+                        addChoice(new Choice("LEFT")).
+                        addChoice(new Choice("RIGHT"));
+            case "COLIBRI":
+            case "BLACKHAWK":
+            case "AOSHIMA":
+                A.
+                        addChoice(new Choice("STOP")).
+                        addChoice(new Choice("IDLE")).
+                        addChoice(new Choice("UP")).
+                        addChoice(new Choice("DOWN")).
+                        addChoice(new Choice("MOVE")).
+                        addChoice(new Choice("LEFT")).
+                        addChoice(new Choice("RIGHT"));
+
+        }
         this.doNotExit();
     }
 
@@ -104,7 +122,18 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
 
     @Override
     public boolean Va(Environment E, Choice a) {
-        return VaV5(E, a);
+        switch (type) {
+            default:
+            case "HEMTT":
+            case "HUMMER":
+            case "CORSAIR":
+                return VaV6(E, a);
+            case "COLIBRI":
+            case "BLACKHAWK":
+            case "AOSHIMA":
+                return VaV7(E, a);
+
+        }
     }
 
     // Always move forward, eventually pick the target
@@ -265,11 +294,170 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
                     } else {
                         originaldistance = E.getDistance();
                         border = true;
+                        return false;
                     }
             }
         }
 
         return false;
+    }
+
+    // HEMTT, HUMMER, CORSAIR
+    public boolean VaV6(Environment E, Choice a) {
+        boolean res = false;
+        if (a == null) {
+            return res;
+        }
+        if (wall.equals("NO")) {
+            switch (a.getName().toUpperCase()) {
+                case "LEFT":
+                    if (!E.isFreeFront() && E.isTargetLeft() && E.isTargetAhead()) {
+                        originaldistance = E.getDistance();
+                        wall = "RIGHT";
+                        res = true;
+                    } else if (E.isTargetLeft() && E.isFreeFrontLeft()) {
+                        res = true;
+                    }
+                    break;
+                case "RIGHT":
+                    if (!E.isFreeFront() && E.isTargetRight() && E.isTargetAhead()) {
+                        res = true;
+                        originaldistance = E.getDistance();
+                        wall = "LEFT";
+                    } else if ((E.isTargetRight() && E.isFreeFrontRight())) {
+                        res = true;
+                    }
+                    break;
+                case "MOVE":
+                    if (!E.getOntarget() && E.isFreeFront() && !E.isTargetBack()) { // && (E.isTargetFront() || E.isTargetLeft() || E.isTargetRight())
+                        res = true;
+                    }
+            }
+        } else {
+            switch (a.getName().toUpperCase()) {
+                case "LEFT":
+                    if (E.isFreeLeft() && E.isTargetLeft() && E.getDistance() < originaldistance && wall.equals("RIGHT")) {
+                        wall = "NO";
+                        res = true;
+                    } else if (E.isFreeFrontLeft() && wall.equals("LEFT")) {
+                        res = true;
+                    } else if (wall.equals("RIGHT") && !E.isFreeFront()) {
+                        res = true;
+                    }
+                    break;
+                case "RIGHT":
+                    if (E.isFreeRight() && E.isTargetRight() && E.getDistance() < originaldistance && wall.equals("LEFT")) {
+                        wall = "NO";
+                        res = true;
+                    } else if (!E.isFreeFront() && wall.equals("LEFT")) {
+                        res = true;
+                    } else if (E.isFreeFrontRight() && wall.equals("RIGHT")) {
+                        res = true;
+                    }
+                    break;
+                case "MOVE":
+                    if (!E.getOntarget() && E.isFreeFront() && !E.isFreeFrontLeft() && wall.equals("LEFT")) {
+                        res = true;
+                    } else if (!E.getOntarget() && E.isFreeFront() && !E.isFreeFrontRight() && wall.equals("RIGHT")) {
+                        res = true;
+                    }
+            }
+
+        }
+        if (!wall.equals("NO") && E.getDistance() < 2) {
+            wall = "NO";
+        }
+        return res;
+    }
+
+    // HEMTT, HUMMER, CORSAIR
+    public boolean VaV7(Environment E, Choice a) {
+        boolean res = false;
+        if (a == null) {
+            return res;
+        }
+        if (wall.equals("NO")) {
+            switch (a.getName().toUpperCase()) {
+                case "DOWN":
+                    if (E.getDistance() == 0 && E.getGround() > 0) {
+                        res = true;
+                    }
+                    break;
+                case "UP":
+                    if (E.getDistance()>0 && E.getAltitude() != E.getMaxlevel()) {
+                        res = true;
+                    }
+                    break;
+                case "LEFT":
+                    if (E.getAltitude() == E.getMaxlevel() && !E.isFreeFront() && E.isTargetLeft() && E.isTargetAhead()) {
+                        originaldistance = E.getDistance();
+                        wall = "RIGHT";
+                        res = true;
+                    } else if (E.isTargetLeft() && E.isFreeFrontLeft()) {
+                        res = true;
+                    }
+                    break;
+                case "RIGHT":
+                    if (E.getAltitude() == E.getMaxlevel() && !E.isFreeFront() && E.isTargetRight() && E.isTargetAhead()) {
+                        res = true;
+                        originaldistance = E.getDistance();
+                        wall = "LEFT";
+                    } else if (E.getAltitude() == E.getMaxlevel() && (E.isTargetRight() && E.isFreeFrontRight())) {
+                        res = true;
+                    }
+                    break;
+                case "MOVE":
+                    if (!E.getOntarget() && E.getAltitude() == E.getMaxlevel() && E.isFreeFront() && !E.isTargetBack()) { // && (E.isTargetFront() || E.isTargetLeft() || E.isTargetRight())
+                        res = true;
+                    }
+                    break;
+            }
+        } else {
+            switch (a.getName().toUpperCase()) {
+                case "DOWN":
+                    if (E.getDistance() == 0 && E.getGround() > 0) {
+                        res = true;
+                    }
+                    break;
+                case "UP":
+                    if (E.getDistance()>0 && E.getAltitude() != E.getMaxlevel()) {
+                        res = true;
+                    }
+                    break;
+                case "LEFT":
+                    if (E.getAltitude() == E.getMaxlevel() && E.isFreeLeft() && E.isTargetLeft() && E.getDistance() < originaldistance && wall.equals("RIGHT")) {
+                        wall = "NO";
+                        res = true;
+                    } else if (E.getAltitude() == E.getMaxlevel() && E.isFreeFrontLeft() && wall.equals("LEFT")) {
+                        res = true;
+                    } else if (E.getAltitude() == E.getMaxlevel() && wall.equals("RIGHT") && !E.isFreeFront()) {
+                        res = true;
+                    }
+                    break;
+                case "RIGHT":
+                    if (E.getAltitude() == E.getMaxlevel() && E.isFreeRight() && E.isTargetRight() && E.getDistance() < originaldistance && wall.equals("LEFT")) {
+                        wall = "NO";
+                        res = true;
+                    } else if (E.getAltitude() == E.getMaxlevel() && !E.isFreeFront() && wall.equals("LEFT")) {
+                        res = true;
+                    } else if (E.getAltitude() == E.getMaxlevel() && E.isFreeFrontRight() && wall.equals("RIGHT")) {
+                        res = true;
+                    }
+                    break;
+                case "MOVE":
+                    if (!E.getOntarget() && E.getAltitude() == E.getMaxlevel() && E.isFreeFront() && !E.isFreeFrontLeft() && wall.equals("LEFT")) {
+                        res = true;
+                    } else if (!E.getOntarget() && E.getAltitude() == E.getMaxlevel() && E.isFreeFront() && !E.isFreeFrontRight() && wall.equals("RIGHT")) {
+                        res = true;
+                    }
+                    break;
+            }
+
+        }
+        if (!wall.equals("NO") && E.getDistance() < 2) {
+            wall = "NO";
+        }
+        return res;
     }
 
 //    @Override
@@ -314,9 +502,13 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
             Info("Found no action to execute");
             Alert("Found no action to execute");
             return Status.CLOSEPROBLEM;
-        } else if (a.getName().equals("HALT") || a.getName().equals("IDLE")) {
+        } else if (a.getName().equals("STOP")) {
             Info("Halting the problem");
-            Alert("Halting the problem");
+            Alert("Halting the problem: " + E.getStatus());
+            return Status.CLOSEPROBLEM;
+        } else if (a.getName().equals("IDLE")) {
+            Info("Halting the problem");
+            Alert("Halting the problem: don't know what to do");
             return Status.CLOSEPROBLEM;
         } else {// Execute
             Info("Excuting " + a);
@@ -472,10 +664,23 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
     }
 
     Status joinProblemNoAttach() {
+        String ctarget = null;
         Info("Join problem " + problemName + " with " + sessionManager);
-        String command;
-        if (city.length() > 0) {
-            command = "Request join session " + sessionKey+ " in "+city;
+        String command, cities[];
+        if (type.equals("HUMMER") || type.equals("HEMTT")) {
+            this.doQueryCities("CITIES");
+        } else if (type.equals("COLIBRI") || type.equals("BLACKHAWK")) {
+            this.doQueryCities("CITIES");
+        } else if (type.equals("CORSAIR")) {
+            this.doQueryCities("PORT");
+        } else if (type.equals("AOSHIMA")) {
+            this.doQueryCities("HYBRID");
+        }
+
+        cities = E.getCityList();
+        city = this.inputSelect("Please type the base or leave empty", cities, wall);
+        if (city != null && city.length() > 0) {
+            command = "Request join session " + sessionKey + " in " + city;
         } else {
             command = "Request join session " + sessionKey;
         }
@@ -485,14 +690,22 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
         inbox = LARVAblockingReceive();
         mySentence = new Sentence().parseSentence(inbox.getContent());
         if (mySentence.isNext("CONFIRM")) {
-            Info("Session manager " + sessionManager + " has joined to the session " + sessionKey);
             this.doReadPerceptions();
-            String ctarget = this.inputLine(this.logger.getLastlog()+"\n\nPlease type destination");
-            if (ctarget !=null) {
-                outbox = inbox.createReply();
-                outbox.setContent("Query course in "+ctarget+" Session "+sessionKey);
-                this.LARVAsend(outbox);
-                inbox = this.LARVAblockingReceive();
+            Info("Session manager " + sessionManager + " has joined to the session " + sessionKey);
+            if (city != null && city.length() > 0) {
+                ctarget = this.inputSelect("Please type the destination city", cities, wall);
+                if (ctarget != null) {
+                    outbox = inbox.createReply();
+                    outbox.setContent("Query course in " + ctarget + " Session " + sessionKey);
+                    this.LARVAsend(outbox);
+                    inbox = this.LARVAblockingReceive();
+                    if (!inbox.getContent().toUpperCase().startsWith("FAILURE")) {
+                        E.setExternalPerceptions(inbox.getContent());
+                    } else {
+                        Error("Unable to find a path to " + ctarget);
+                        return Status.CLOSEPROBLEM;
+                    }
+                }
             }
             return Status.SOLVEPROBLEM;
         } else {
@@ -506,6 +719,17 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
         Info("Querying the sensors");
         outbox = inbox.createReply();
         outbox.setContent("Query sensors session " + sessionKey);
+        this.LARVAsend(outbox);
+        inbox = LARVAblockingReceive();
+//        Info("\n\n-------------------------------" + this.E..printSensors() + "-------------------------------\n\n");
+        E.setExternalPerceptions(inbox.getContent());
+        return mystatus;
+    }
+
+    Status doQueryCities(String type) {
+        Info("Querying " + type);
+        outbox = inbox.createReply();
+        outbox.setContent("Query " + type + " session " + sessionKey);
         this.LARVAsend(outbox);
         inbox = LARVAblockingReceive();
 //        Info("\n\n-------------------------------" + this.E..printSensors() + "-------------------------------\n\n");
@@ -582,7 +806,7 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
         int Obstacle[][] = E.getShortRadar();
         console.setCursorXY(2, 8);
         console.print(label("RADAR"
-                + "\tDISTANCES"));
+                + "\tDISTANCES  \tWALL: " + wall));
         for (int y = 0; y < Obstacle.length; y++) {
             for (int x = 0; x < Obstacle[0].length; x++) {
                 console.setCursorXY(2 + x, 9 + y);

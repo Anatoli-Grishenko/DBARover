@@ -81,7 +81,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
 //         E.setTarget(new Point3D(0,0,0));
         step = true;
         A.
-                addChoice(new Choice("HALT")).
+                addChoice(new Choice("STOP")).
                 addChoice(new Choice("IDLE")).
                 addChoice(new Choice("MOVE")).
                 addChoice(new Choice("LEFT")).
@@ -397,7 +397,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
         while (!plan.isEmpty()) {
             Choice a = plan.get(0);
             plan.remove(0);
-            if (a.getName().equals("HALT")) {
+            if (a.getName().equals("STOP")) {
                 Info("Halting the problem");
                 Alert("Halting the problem");
                 return Status.CLOSEPROBLEM;

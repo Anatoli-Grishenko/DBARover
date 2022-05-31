@@ -87,7 +87,7 @@ public class Rover_Deliberative_2223 extends LARVAFirstAgent {
 //        E.setTarget(new Point3D(0,0,0));
         step = true;
         A.
-                addChoice(new Choice("HALT")).
+                addChoice(new Choice("STOP")).
                 addChoice(new Choice("IDLE")).
                 addChoice(new Choice("MOVE")).
                 addChoice(new Choice("LEFT")).
@@ -327,7 +327,7 @@ public class Rover_Deliberative_2223 extends LARVAFirstAgent {
                 a = Ag(Ei, A);
                 this.printMyStatusFunctional(Ei, A);
                 this.waitRemoteSemaphore();
-                if (a != null && a.getUtility() != Perceptor.NULLREAD && !a.getName().equals("HALT") && !G(E)) {
+                if (a != null && a.getUtility() != Perceptor.NULLREAD && !a.getName().equals("STOP") && !G(E)) {
                     plan.add(a);
                     Ef = Ei.simmulate(a);
                     Ei = Ef;
@@ -351,7 +351,7 @@ public class Rover_Deliberative_2223 extends LARVAFirstAgent {
         while (!plan.isEmpty()) {
             Choice a = plan.get(0);
             plan.remove(0);
-            if (a.getName().equals("HALT")) {
+            if (a.getName().equals("STOP")) {
                 Info("Halting the problem");
                 Alert("Halting the problem");
                 return Status.CLOSEPROBLEM;

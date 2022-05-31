@@ -1,7 +1,7 @@
 {
     "options": {
         "Objects": {
-            "Objects to Display": {
+            "Objects to display": {
                 "Myself": true,
                 "Cities": true,
                 "Other agents": true
