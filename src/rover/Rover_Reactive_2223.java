@@ -18,6 +18,7 @@ import geometry.Compass;
 import geometry.Point3D;
 import jade.core.AID;
 import jade.lang.acl.ACLMessage;
+import jade.lang.acl.MessageTemplate;
 import java.util.Collections;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -28,7 +29,7 @@ import world.Perceptor;
 public class Rover_Reactive_2223 extends LARVAFirstAgent {
 
     enum Status {
-        CHECKIN, CHECKOUT, OPENPROBLEM, JOINPROBLEM, SOLVEPROBLEM, DEAD, CLOSEPROBLEM, EXIT, BLOCKED,
+        CHECKIN, CHECKOUT, OPENPROBLEM, JOINPROBLEM, CHOOSEMISSION,  SOLVEMISSION, DEAD, CLOSEPROBLEM, EXIT, BLOCKED,
     }
     Status mystatus, mysubstatus;
     String service = "PManager",
@@ -315,7 +316,7 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
                         originaldistance = E.getDistance();
                         wall = "RIGHT";
                         res = true;
-                    } else if (E.isTargetLeft() && E.isFreeFrontLeft()) {
+                    } else if (E.isTargetLeft()) {
                         res = true;
                     }
                     break;
@@ -324,12 +325,12 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
                         res = true;
                         originaldistance = E.getDistance();
                         wall = "LEFT";
-                    } else if ((E.isTargetRight() && E.isFreeFrontRight())) {
+                    } else if ((E.isTargetRight() )) {
                         res = true;
                     }
                     break;
                 case "MOVE":
-                    if (!E.getOntarget() && E.isFreeFront() && !E.isTargetBack()) { // && (E.isTargetFront() || E.isTargetLeft() || E.isTargetRight())
+                    if (!E.getOntarget() && E.isFreeFront()&& E.isTargetAhead()) { // && (E.isTargetFront() || E.isTargetLeft() || E.isTargetRight())
                         res = true;
                     }
             }
@@ -370,7 +371,7 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
         return res;
     }
 
-    // HEMTT, HUMMER, CORSAIR
+    // COLIBIR, BLACKHAWK, AOSHIMA
     public boolean VaV7(Environment E, Choice a) {
         boolean res = false;
         if (a == null) {
@@ -384,12 +385,13 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
                     }
                     break;
                 case "UP":
-                    if (E.getDistance()>0 && E.getAltitude() != E.getMaxlevel()) {
+                    if (E.getDistance() > 0 && E.getAltitude() != E.getMaxlevel()) {
                         res = true;
                     }
                     break;
                 case "LEFT":
-                    if (E.getAltitude() == E.getMaxlevel() && !E.isFreeFront() && E.isTargetLeft() && E.isTargetAhead()) {
+                    if (E.getAltitude() == E.getMaxlevel() && !E.isFreeFront() 
+                            && E.isTargetLeft() && E.isTargetAhead()) {
                         originaldistance = E.getDistance();
                         wall = "RIGHT";
                         res = true;
@@ -420,7 +422,7 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
                     }
                     break;
                 case "UP":
-                    if (E.getDistance()>0 && E.getAltitude() != E.getMaxlevel()) {
+                    if (E.getDistance() > 0 && E.getAltitude() != E.getMaxlevel()) {
                         res = true;
                     }
                     break;
@@ -488,7 +490,7 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
         return A;
     }
 
-    Status solveProblem() {
+    Status solveMission() {
         // Analizar objetivo
         if (G(E)) {
             Info("The problem is over");
@@ -536,13 +538,16 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
                 mystatus = openProblem(problemName);
                 break;
             case JOINPROBLEM:
-                mystatus = joinProblemNoAttach();
+                mystatus = joinProblemAsks();
                 if (showConsole) {
                     console = new Console("Register of decisions", cw, ch, 8);
                 }
                 break;
-            case SOLVEPROBLEM:
-                mystatus = solveProblem();
+            case CHOOSEMISSION:
+                mystatus = chooseMission();
+                break;
+            case SOLVEMISSION:
+                mystatus = solveMission();
                 break;
             case CLOSEPROBLEM:
                 mystatus = closeProblem();
@@ -619,7 +624,7 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
             outbox.setContent("Request open " + problemName);
         }
         this.LARVAsend(outbox);
-        open = LARVAblockingReceive();
+        open = this.myblockingReceive(problemManager);
         if (open == null) {
             this.Alert("The server does not answer");
             return Status.EXIT;
@@ -640,30 +645,7 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
 
     }
 
-    Status joinProblemAttach() {
-        Info("Join problem " + problemName + " with " + sessionManager);
-        String command = "Request join session " + sessionKey
-                + " attach sensors";
-        for (int i = 0; i < this._mySensors.length; i++) {
-            command += " " + myAttachments[i];
-        }
-        outbox = inbox.createReply();
-        outbox.setContent(command);
-        this.LARVAsend(outbox);
-        inbox = LARVAblockingReceive();
-        mySentence = new Sentence().parseSentence(inbox.getContent());
-        if (mySentence.isNext("CONFIRM")) {
-            Info("Session manager " + sessionManager + " has joined to the session " + sessionKey);
-            this.doReadPerceptions();
-            return Status.SOLVEPROBLEM;
-        } else {
-            Info("Could not join the session " + sessionKey);
-            Error(mySentence.getSentence());
-            return Status.CLOSEPROBLEM;
-        }
-    }
-
-    Status joinProblemNoAttach() {
+    Status joinProblemAsks() {
         String ctarget = null;
         Info("Join problem " + problemName + " with " + sessionManager);
         String command, cities[];
@@ -678,7 +660,7 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
         }
 
         cities = E.getCityList();
-        city = this.inputSelect("Please type the base or leave empty", cities, wall);
+        city = this.inputSelect("Please type the base or leave empty", cities, city);
         if (city != null && city.length() > 0) {
             command = "Request join session " + sessionKey + " in " + city;
         } else {
@@ -693,10 +675,10 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
             this.doReadPerceptions();
             Info("Session manager " + sessionManager + " has joined to the session " + sessionKey);
             if (city != null && city.length() > 0) {
-                ctarget = this.inputSelect("Please type the destination city", cities, wall);
+                ctarget = this.inputSelect("Please type the destination city", cities, ctarget);
                 if (ctarget != null) {
                     outbox = inbox.createReply();
-                    outbox.setContent("Query course in " + ctarget + " Session " + sessionKey);
+                    outbox.setContent("Request course in " + ctarget + " Session " + sessionKey);
                     this.LARVAsend(outbox);
                     inbox = this.LARVAblockingReceive();
                     if (!inbox.getContent().toUpperCase().startsWith("FAILURE")) {
@@ -707,7 +689,7 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
                     }
                 }
             }
-            return Status.SOLVEPROBLEM;
+            return Status.SOLVEMISSION;
         } else {
             Info("Could not join the session " + sessionKey);
             Error(mySentence.getSentence());
@@ -715,6 +697,65 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
         }
     }
 
+    Status joinProblemAuto() {
+        String ctarget = null;
+        Info("Join problem " + problemName + " with " + sessionManager);
+        String command, cities[];
+        if (type.equals("HUMMER") || type.equals("HEMTT")) {
+            this.doQueryCities("CITIES");
+        } else if (type.equals("COLIBRI") || type.equals("BLACKHAWK")) {
+            this.doQueryCities("CITIES");
+        } else if (type.equals("CORSAIR")) {
+            this.doQueryCities("PORT");
+        } else if (type.equals("AOSHIMA")) {
+            this.doQueryCities("HYBRID");
+        }
+        cities = E.getCityList();
+        city = "Barung"; //outOf(cities, "");
+        command = "Request join session " + sessionKey + " in " + city;
+        outbox = inbox.createReply();
+        outbox.setContent(command);
+        this.LARVAsend(outbox);
+        inbox = myblockingReceive(sessionManager);
+        mySentence = new Sentence().parseSentence(inbox.getContent());
+        if (mySentence.isNext("CONFIRM")) {
+            this.doReadPerceptions();
+            Info("Session manager " + sessionManager + " has joined to the session " + sessionKey);
+            ctarget = outOf(cities, city);
+            if (ctarget != null) {
+                outbox = inbox.createReply();
+                outbox.setContent("Request course in " + ctarget + " Session " + sessionKey);
+                this.LARVAsend(outbox);
+                inbox = this.LARVAblockingReceive();
+                if (!inbox.getContent().toUpperCase().startsWith("FAILURE")) {
+                    E.setExternalPerceptions(inbox.getContent());
+                } else {
+                    Error("Unable to find a path to " + ctarget);
+                    return Status.CLOSEPROBLEM;
+                }
+            }
+            return Status.SOLVEMISSION;
+        } else {
+            Info("Could not join the session " + sessionKey);
+            Error(mySentence.getSentence());
+            return Status.CLOSEPROBLEM;
+        }
+    }
+
+    Status chooseMission() {
+        Info("Querying the missions");
+        outbox = inbox.createReply();
+        outbox.setContent("Query missions session " + sessionKey);
+        this.LARVAsend(outbox);
+        inbox = LARVAblockingReceive();
+        E.setExternalObjects(inbox.getContent());
+        if (E.getNMissions()==1) {
+            missionName = E.getMissionName(0);
+            myMission = E.getMission(0);            
+        }
+        return mystatus;        
+    }
+    
     Status doReadPerceptions() {
         Info("Querying the sensors");
         outbox = inbox.createReply();
@@ -767,6 +808,20 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
         Info("Checking out");
         this.doLARVACheckout();
         return Status.EXIT;
+    }
+
+    public ACLMessage myblockingReceive(String senderName) {
+        return LARVAblockingReceive(MessageTemplate.MatchSender(new AID(senderName, AID.ISLOCALNAME)));
+    }
+
+    public String outOf(String[] list, String not) {
+        String res;
+        int i, n = list.length;
+        do {
+            i = (int) (Math.random() * n);
+        } while (!list[i].equals(not));
+        return list[i];
+
     }
 
     public void printMyStatusFunctional(Environment E, DecisionSet A) {
