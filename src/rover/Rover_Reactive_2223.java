@@ -470,9 +470,9 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
         for (Choice a : A) {
             if (Va(E, a)) {
                 if (a.getName().equals("LEFT") || a.getName().equals("RIGHT")) {
-                    a.setUtility(Reward(T(T(E, a), new Choice("MOVE"))));
+                    a.setUtility(Reward(S(S(E, a), new Choice("MOVE"))));
                 } else {
-                    a.setUtility(U(T(E, a)));
+                    a.setUtility(U(S(E, a)));
                 }
             } else {
                 a.setUtility(Choice.MAX_UTILITY);
@@ -741,7 +741,7 @@ public class Rover_Reactive_2223 extends LARVAFirstAgent {
         this.LARVAsend(outbox);
         inbox = LARVAblockingReceive();
         E.setExternalObjects(inbox.getContent());
-        if (E.getNumMissions()==1) {
+        if (E.getMissionsSize()==1) {
             E.activateMission(E.getMissionName(0));
         }
         return mystatus;        

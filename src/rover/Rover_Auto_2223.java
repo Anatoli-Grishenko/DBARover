@@ -56,7 +56,7 @@ public class Rover_Auto_2223 extends LARVAFirstAgent {
     int limitEnergy = 400;
     double originaldistance;
     boolean border = false, autonav = false;
-    String sessionAlias, city, wall = "NO", type;
+    String city, wall = "NO", type;
     OleConfig problemCfg;
 
     @Override
@@ -125,7 +125,7 @@ public class Rover_Auto_2223 extends LARVAFirstAgent {
 
     @Override
     public boolean G(Environment e) {
-        return E.isOverMission();
+        return E.isOverCurrentMission();
     }
 
     @Override
@@ -337,9 +337,9 @@ public class Rover_Auto_2223 extends LARVAFirstAgent {
         for (Choice a : A) {
             if (Va(E, a)) {
                 if (a.getName().equals("LEFT") || a.getName().equals("RIGHT")) {
-                    a.setUtility(Reward(T(T(E, a), new Choice("MOVE"))));
+                    a.setUtility(Reward(S(S(E, a), new Choice("MOVE"))));
                 } else {
-                    a.setUtility(U(T(E, a)));
+                    a.setUtility(U(S(E, a)));
                 }
             } else {
                 a.setUtility(Choice.MAX_UTILITY);
@@ -403,7 +403,7 @@ public class Rover_Auto_2223 extends LARVAFirstAgent {
     public void Execute() {
 
         Info("Status: " + mystatus.name());
-//        Info("Mission: "+E.getCurrentMission()+"/"+E.getCurrentTask());
+//        Info("Mission: "+E.getCurrentMission()+"/"+E.getCurrentGoal());
         switch (mystatus) {
             case CHECKIN:
                 mystatus = checkIn();
@@ -505,7 +505,7 @@ public class Rover_Auto_2223 extends LARVAFirstAgent {
             mySentence = new Sentence().parseSentence(open.getContent());
             if (mySentence.isNext("AGREE")) {
                 sessionKey = mySentence.next(3);
-                this.DFAddMyServices(new String[]{"OPEN SESSION CHOCOLATE", "CHOCOLATE " + sessionKey});
+                this.DFAddMyServices(new String[]{"OPEN SESSION "+sessionKey, sessionKey+" " + sessionKey});
                 inbox = LARVAblockingReceive();
                 sessionManager = inbox.getSender().getLocalName();
                 Info("Assigned to " + sessionManager + " in problem " + problemName + " during session " + sessionKey);
@@ -574,7 +574,7 @@ public class Rover_Auto_2223 extends LARVAFirstAgent {
         }
     }
 
-    protected void activateMission(String mission) {
+    protected void activateCurrentMission(String mission) {
         this.DFAddMyServices(new String[]{"MISSION " + mission});
         E.activateMission(mission);
     }
@@ -617,7 +617,7 @@ public class Rover_Auto_2223 extends LARVAFirstAgent {
 
     protected Status doneTask(String task) {
         this.DFRemoveMyServices(new String[]{"TASK " + task});
-        if (!E.isOverMission()) {
+        if (!E.isOverCurrentMission()) {
             E.nextTask();
             return activateTask(E.getCurrentTask());
         } else {
@@ -633,17 +633,17 @@ public class Rover_Auto_2223 extends LARVAFirstAgent {
         inbox = LARVAblockingReceive();
         E.setExternalObjects(inbox.getContent());
         String m;
-        if (E.getNumMissions() == 1) {
+        if (E.getMissionsSize() == 1) {
             m = E.getMissionName(0);
         } else {
             if (autonav) {
-                m = E.getAllMissions()[(int) (E.getNumMissions() * Math.random())];
+                m = E.getAllMissions()[(int) (E.getMissionsSize() * Math.random())];
             } else {
                 m = this.inputSelect("Please chhoose a mission", E.getAllMissions(), "");
             }
-//            E.activateMission(E.getAllMissions()[(int) (E.getNumMissions() * Math.random())]);
+//            E.activateCurrentMission(E.getAllMissions()[(int) (E.getMissionSetSize() * Math.random())]);
         }
-//        String parameters[] = E.getCurrentTask().split(" ");
+//        String parameters[] = E.getCurrentGoal().split(" ");
 //        if (parameters[0].equals("MOVEIN")) {
 //            outbox = inbox.createReply();
 //            outbox.setContent("Request course in " + parameters[1] + " Session " + sessionKey);
@@ -671,7 +671,7 @@ public class Rover_Auto_2223 extends LARVAFirstAgent {
 //            }
 //
 //        }
-        activateMission(m);
+        activateCurrentMission(m);
         return activateTask(E.getCurrentTask());
     }
 

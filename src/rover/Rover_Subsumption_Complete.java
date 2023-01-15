@@ -382,7 +382,7 @@ public class Rover_Subsumption_Complete extends LARVAFirstAgent {
     }
 
     @Override
-    protected Environment T(Environment E, Choice a) {
+    protected Environment S(Environment E, Choice a) {
         return null;
     }
 

@@ -112,7 +112,7 @@ public class Rover_Deliberative extends LARVAFirstAgent {
 //        return E.getOntarget();
 //    }
 //    @Override
-//    protected Environment T(Environment E, Choice a) {
+//    protected Environment S(Environment E, Choice a) {
 //        if (!Ve(E)) {
 //            return null;
 //        } else {
@@ -305,9 +305,9 @@ public class Rover_Deliberative extends LARVAFirstAgent {
         for (Choice a : A) {
             if (Va(E, a)) {
                 if (a.getName().equals("LEFT") || a.getName().equals("RIGHT")) {
-                    a.setUtility(Reward(T(T(E, a), new Choice("MOVE"))));
+                    a.setUtility(Reward(S(S(E, a), new Choice("MOVE"))));
                 } else {
-                    a.setUtility(U(T(E, a)));
+                    a.setUtility(U(S(E, a)));
                 }
             } else {
                 a.setUtility(Choice.MAX_UTILITY);
